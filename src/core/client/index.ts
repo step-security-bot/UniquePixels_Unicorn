@@ -43,6 +43,7 @@ export function isUnicornClient(client: Client): client is UnicornClient {
 		'logger' in client &&
 		'config' in client &&
 		'commands' in client &&
+		// biome-ignore lint/security/noSecrets: property name, not a secret
 		'componentPatterns' in client
 	);
 }

@@ -8,6 +8,7 @@ import * as u from './schema-helpers.ts';
  * Defines the structure for Discord client settings, presence configuration,
  * OAuth2 options, and environment-specific ID mappings for roles, channels, and emoji.
  */
+// biome-ignore lint/nursery/useExplicitType: Zod infers schema type - explicit typing would be verbose and redundant
 export const UnicornConfigSchema = z.object({
 	discord: z.object({
 		appID: u.envMap(u.Snowflake),
@@ -31,6 +32,7 @@ export const UnicornConfigSchema = z.object({
 			})
 			.optional(),
 	}),
+	healthCheckPort: z.number().int().min(1).max(65535).optional(),
 	misc: z.record(z.string(), z.any()),
 	ids: z.object({
 		role: z.record(z.string(), u.envMap(u.Snowflake)),

@@ -141,6 +141,7 @@ export async function runGuards<
 	// Sequential execution is intentional: each guard's output feeds into the next,
 	// and we short-circuit on first failure.
 	for (const guard of guards) {
+		// biome-ignore lint/performance/noAwaitInLoops: guards must run sequentially for type narrowing and short-circuit
 		const result = await guard(currentValue, client);
 
 		if (!result.ok) {

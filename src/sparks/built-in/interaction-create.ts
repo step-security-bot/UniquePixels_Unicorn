@@ -11,6 +11,7 @@ import { attempt, isError } from '@/core/lib/attempt';
 import {
 	defineGatewayEvent,
 	findComponentSpark,
+	type GatewayEventSpark,
 	hasAutocomplete,
 } from '@/core/sparks';
 
@@ -185,10 +186,12 @@ async function safeHandle(
  * - Buttons/Selects → ComponentSpark by customId (supports patterns)
  * - Modal submits → ComponentSpark by customId (supports patterns)
  */
-export const interactionCreate = defineGatewayEvent({
+export const interactionCreate: GatewayEventSpark<
+	typeof Events.InteractionCreate
+> = defineGatewayEvent({
 	event: Events.InteractionCreate,
 	once: false,
-	action: async (interaction: Interaction, client) => {
+	action: async (interaction: Interaction, client: UnicornClient) => {
 		// Route based on interaction type, wrapped in safe error handling
 		if (interaction.isChatInputCommand()) {
 			await safeHandle(

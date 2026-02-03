@@ -4,7 +4,7 @@ import * as Sentry from '@sentry/bun';
 import { type Client, Events } from 'discord.js';
 import pino, { type Logger } from 'pino';
 
-const isDev = Bun.env.NODE_ENV === 'development';
+const isDev: boolean = Bun.env.NODE_ENV === 'development';
 
 type PinoLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 type PinoLevelNumber = 10 | 20 | 30 | 40 | 50 | 60;
@@ -40,8 +40,12 @@ export const PINO_LEVEL_NAME: Record<PinoLevelNumber, PinoLevel> = {
 	60: 'fatal',
 };
 
-export const ERROR_LEVELS = new Set<PinoLevel>(['warn', 'error', 'fatal']);
-export const LOG_LEVELS = new Set<PinoLevel>([
+export const ERROR_LEVELS: Set<PinoLevel> = new Set<PinoLevel>([
+	'warn',
+	'error',
+	'fatal',
+]);
+export const LOG_LEVELS: Set<PinoLevel> = new Set<PinoLevel>([
 	'info',
 	'warn',
 	'error',
@@ -102,7 +106,11 @@ export function createSentryStream(
 	sentryClient: SentryClient = Sentry,
 ): Writable {
 	return new Writable({
-		write(chunk: Buffer, _encoding, callback) {
+		write(
+			chunk: Buffer,
+			_encoding: BufferEncoding,
+			callback: (error?: Error | null) => void,
+		): void {
 			const line = chunk.toString().trim();
 			if (!line) {
 				callback();
@@ -158,7 +166,7 @@ export function createLogger(): Logger {
 	return pino({ level: 'info' }, createSentryStream());
 }
 
-export const logger = createLogger();
+export const logger: Logger = createLogger();
 
 /**
  * Registers Discord.js debug, warn, and error events to forward to the logger.

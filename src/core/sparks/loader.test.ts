@@ -560,7 +560,7 @@ describe('loadSparks', () => {
 
 	test('logs debug information during loading', async () => {
 		const client = createMockClient();
-		const debugMock = client.logger.debug as ReturnType<typeof mock>;
+		const debugMock = client.logger.debug;
 
 		// Create a valid spark
 		const sparkCode = `

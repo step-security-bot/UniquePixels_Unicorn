@@ -54,7 +54,7 @@ const DEFAULT_OPTIONS: Required<LoadSparksOptions> = {
 /**
  * Valid spark type values.
  */
-const SPARK_TYPES = new Set<SparkType>([
+const SPARK_TYPES: Set<SparkType> = new Set<SparkType>([
 	'command',
 	'component',
 	'gateway-event',
@@ -174,6 +174,7 @@ export async function loadSparks(
 
 		try {
 			// Dynamic import
+			// biome-ignore lint/performance/noAwaitInLoops: sequential loading ensures deterministic registration order
 			const module = (await import(filePath)) as Record<string, unknown>;
 
 			// Find all exported spark instances

@@ -130,10 +130,10 @@ describe('envMap', () => {
 		// Since isDev is evaluated at module load, this test may not reflect runtime changes
 		// The actual behavior depends on NODE_ENV at module load time
 
-		if (originalNodeEnv !== undefined) {
-			Bun.env['NODE_ENV'] = originalNodeEnv;
-		} else {
+		if (originalNodeEnv === undefined) {
 			delete Bun.env['NODE_ENV'];
+		} else {
+			Bun.env['NODE_ENV'] = originalNodeEnv;
 		}
 	});
 

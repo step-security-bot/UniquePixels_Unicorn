@@ -1,11 +1,13 @@
 import { join } from 'node:path';
 import process from 'node:process';
 import { Client, REST, Routes } from 'discord.js';
-import { initializeUnicornClient } from '@/core/client';
-import { parseConfig } from '@/core/configuration';
+import type { Logger } from 'pino';
+import { initializeUnicornClient, type UnicornClient } from '@/core/client';
+import { type ParsedConfig, parseConfig } from '@/core/configuration';
 import { createLogger, registerDiscordLogging } from '@/core/logger';
 import {
 	collectCommandBuilders,
+	type LoadSparksResult,
 	loadSparks,
 	stopAllScheduledJobs,
 } from '@/core/sparks';
@@ -31,18 +33,19 @@ import { appConfig } from './config.ts';
  * @throws Error if startup fails at any step
  */
 
-const logger = createLogger();
+const logger: Logger = createLogger();
 
 logger.info('Starting Unicorn...');
 
 // Parse and validate configuration
 // THROWS on validation failure - app cannot function without valid config
-const config = parseConfig(appConfig);
+const config: ParsedConfig<typeof appConfig> = parseConfig(appConfig);
+// biome-ignore lint/security/noSecrets: log message, not a secret
 logger.debug('Configuration parsed successfully');
 logger.debug({ config }, 'Effective configuration:');
 
 // Create Discord.js Client with configured intents and partials
-const discordClient = new Client({
+const discordClient: Client = new Client({
 	intents: config.discord.intents,
 	partials: config.discord.enabledPartials,
 	presence: {
@@ -53,15 +56,19 @@ const discordClient = new Client({
 });
 
 // Initialize UnicornClient - attaches logger, config, and collections
-const client = initializeUnicornClient(discordClient, logger, config);
+const client: UnicornClient<typeof appConfig> = initializeUnicornClient(
+	discordClient,
+	logger,
+	config,
+);
 
 // Register Discord.js logging hooks
 registerDiscordLogging(client, logger);
 
 // Load all sparks from the sparks directory
 // THROWS on load failure - app cannot function with broken sparks
-const sparksDir = join(import.meta.dir, 'sparks');
-const loadResult = await loadSparks(client, sparksDir);
+const sparksDir: string = join(import.meta.dir, 'sparks');
+const loadResult: LoadSparksResult = await loadSparks(client, sparksDir);
 
 logger.info({ sparks: loadResult.total }, 'Sparks loaded successfully');
 
@@ -85,8 +92,8 @@ if (loadResult.commands > 0) {
 }
 
 // Set up periodic rate limit cleanup (every 5 minutes)
-const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
-const cleanupIntervalId = setInterval(() => {
+const CLEANUP_INTERVAL_MS: number = 5 * 60 * 1000;
+const cleanupIntervalId: Timer = setInterval(() => {
 	const cleared = cleanupRateLimits();
 	if (cleared > 0) {
 		logger.debug({ cleared }, 'Cleaned up rate limit entries');
@@ -133,14 +140,10 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 // Start health check server if port is configured
-const HEALTH_CHECK_PORT = Bun.env['HEALTH_CHECK_PORT']
-	? Number.parseInt(Bun.env['HEALTH_CHECK_PORT'], 10)
-	: undefined;
-
-if (HEALTH_CHECK_PORT) {
+if (config.healthCheckPort) {
 	healthCheckServer = Bun.serve({
-		port: HEALTH_CHECK_PORT,
-		fetch(req) {
+		port: config.healthCheckPort,
+		fetch(req: Request): Response {
 			const url = new URL(req.url);
 
 			// Liveness probe - is the process running?
@@ -160,7 +163,7 @@ if (HEALTH_CHECK_PORT) {
 		},
 	});
 
-	logger.info({ port: HEALTH_CHECK_PORT }, 'Health check server started');
+	logger.info({ port: config.healthCheckPort }, 'Health check server started');
 }
 
 // Login to Discord

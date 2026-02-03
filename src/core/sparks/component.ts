@@ -28,7 +28,7 @@ export type SelectMenuInteraction =
 export type ComponentInteraction = ButtonInteraction | SelectMenuInteraction;
 
 /**
- * All handleable component types including modals.
+ * All component types including modals.
  */
 export type AnyComponentInteraction =
 	| ComponentInteraction
@@ -120,7 +120,7 @@ export interface ComponentSpark<
  * Cache for compiled wildcard patterns to avoid re-compilation on every match.
  * Maps wildcard pattern strings to their compiled RegExp equivalents.
  */
-const wildcardPatternCache = new Map<string, RegExp>();
+const wildcardPatternCache: Map<string, RegExp> = new Map<string, RegExp>();
 
 /**
  * Checks if a pattern is an exact match (not a regex or wildcard).
@@ -136,8 +136,8 @@ function getWildcardRegex(pattern: string): RegExp {
 	let regex = wildcardPatternCache.get(pattern);
 	if (!regex) {
 		const regexPattern = pattern
-			.replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-			.replace(/\*/g, '(.+)');
+			.replaceAll(/[.+?^${}()|[\]\\]/g, String.raw`\$&`)
+			.replaceAll('*', '(.+)');
 		regex = new RegExp(`^${regexPattern}$`);
 		wildcardPatternCache.set(pattern, regex);
 	}
@@ -158,7 +158,7 @@ export function matchCustomId(
 	}
 
 	if (pattern instanceof RegExp) {
-		const match = customId.match(pattern);
+		const match = pattern.exec(customId);
 		if (!match) {
 			return { matched: false };
 		}
@@ -172,9 +172,9 @@ export function matchCustomId(
 	// Check for wildcard pattern
 	if (pattern.includes('*')) {
 		const regex = getWildcardRegex(pattern);
-		const match = customId.match(regex);
+		const match = regex.exec(customId);
 
-		return { matched: !!match };
+		return { matched: match !== null };
 	}
 
 	// Exact match
@@ -309,11 +309,5 @@ export function findComponentSpark(
 	}
 
 	// Then check patterns - O(n) but only over pattern matchers
-	for (const spark of componentPatterns) {
-		if (spark.matches(customId)) {
-			return spark;
-		}
-	}
-
-	return;
+	return componentPatterns.find((spark) => spark.matches(customId));
 }

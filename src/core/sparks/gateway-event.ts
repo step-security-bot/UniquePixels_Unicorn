@@ -131,7 +131,7 @@ export function defineGatewayEvent<
 		register(client: UnicornClient): void {
 			const handler = async (...args: ClientEvents[E]) => {
 				try {
-					await this.execute(args[0] as EventArg<E>, client);
+					await this.execute(args[0], client);
 				} catch (error) {
 					client.logger.error(
 						{ err: error, event },

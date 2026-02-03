@@ -19,14 +19,17 @@ let maxRateLimitEntries = 100_000;
  * Number of entries to evict when the store reaches capacity.
  * Evicting in batches is more efficient than one-by-one.
  */
-let evictionBatchSize = 1_000;
+let evictionBatchSize = 1000;
 
 /**
  * In-memory rate limit storage with LRU eviction.
  * Uses Map's insertion order for LRU tracking - entries are moved to end on access.
  * For production use with multiple instances, consider Redis.
  */
-const rateLimitStore = new Map<string, RateLimitEntry>();
+const rateLimitStore: Map<string, RateLimitEntry> = new Map<
+	string,
+	RateLimitEntry
+>();
 
 /**
  * Testing utilities for rate limit guard.
@@ -34,23 +37,23 @@ const rateLimitStore = new Map<string, RateLimitEntry>();
  */
 export const _testing = {
 	/** Get direct access to the rate limit store */
-	getStore: () => rateLimitStore,
+	getStore: (): Map<string, RateLimitEntry> => rateLimitStore,
 	/** Clear all entries from the store */
-	clearStore: () => {
+	clearStore: (): void => {
 		rateLimitStore.clear();
 	},
 	/** Configure max entries threshold (for testing LRU eviction) */
-	setMaxEntries: (max: number) => {
+	setMaxEntries: (max: number): void => {
 		maxRateLimitEntries = max;
 	},
 	/** Configure eviction batch size */
-	setEvictionBatchSize: (size: number) => {
+	setEvictionBatchSize: (size: number): void => {
 		evictionBatchSize = size;
 	},
 	/** Reset to default configuration */
-	resetConfig: () => {
+	resetConfig: (): void => {
 		maxRateLimitEntries = 100_000;
-		evictionBatchSize = 1_000;
+		evictionBatchSize = 1000;
 	},
 };
 

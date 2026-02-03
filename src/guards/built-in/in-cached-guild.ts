@@ -5,7 +5,7 @@ import type {
 	Interaction,
 	TextBasedChannel,
 } from 'discord.js';
-import { createGuard, guardFail, guardPass } from '@/core/guards';
+import { createGuard, type Guard, guardFail, guardPass } from '@/core/guards';
 
 /**
  * Interaction that is guaranteed to be in a cached guild.
@@ -30,11 +30,12 @@ export type GuildInteraction<T extends Interaction = Interaction> = T & {
  * }
  * ```
  */
-export const inCachedGuild = createGuard<Interaction, GuildInteraction>(
-	(interaction, _client) => {
-		if (!interaction.inCachedGuild()) {
-			return guardFail('This command can only be used in a server.');
-		}
-		return guardPass(interaction as GuildInteraction);
-	},
-);
+export const inCachedGuild: Guard<Interaction, GuildInteraction> = createGuard<
+	Interaction,
+	GuildInteraction
+>((interaction, _client) => {
+	if (!interaction.inCachedGuild()) {
+		return guardFail('This command can only be used in a server.');
+	}
+	return guardPass(interaction as GuildInteraction);
+});

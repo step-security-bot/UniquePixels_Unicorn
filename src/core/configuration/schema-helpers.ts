@@ -17,6 +17,7 @@ const isDev: boolean = Bun.env.NODE_ENV === 'development';
  * GuildId.parse(["123456789012345678", "987654321098765432"]); // [prod, dev]
  * ```
  */
+// biome-ignore lint/nursery/useExplicitType: return type depends on generic T and Zod's complex internal types
 export function envMap<T extends z.ZodTypeAny>(schema: T) {
 	return z
 		.union([schema, z.tuple([schema]), z.tuple([schema, schema])])
@@ -40,6 +41,7 @@ export function envMap<T extends z.ZodTypeAny>(schema: T) {
  */
 export type Snowflake = string & {};
 
+// biome-ignore lint/nursery/useExplicitType: intentional pattern - type and runtime validator share name for ergonomic imports
 export const Snowflake = z.custom<Snowflake>((val): val is Snowflake => {
 	if (typeof val !== 'string') {
 		return false;
@@ -61,6 +63,7 @@ export const Snowflake = z.custom<Snowflake>((val): val is Snowflake => {
  */
 export type Secret = `secret://${string}` & {};
 
+// biome-ignore lint/nursery/useExplicitType: intentional pattern - type and runtime validator share name for ergonomic imports
 export const Secret = z
 	.custom<Secret>((value): value is Secret => {
 		if (typeof value !== 'string') {

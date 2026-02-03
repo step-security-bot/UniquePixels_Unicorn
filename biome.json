@@ -23,7 +23,8 @@
 				"noUselessStringConcat": "on",
 				"noVoid": "on",
 				"useSimplifiedLogicExpression": "on",
-				"useWhile": "on"
+				"useWhile": "on",
+				"useLiteralKeys": "off"
 			},
 			"correctness": {
 				"noGlobalDirnameFilename": "on",
