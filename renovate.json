@@ -1,0 +1,43 @@
+{
+	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
+	"extends": [
+		"config:recommended",
+		"group:allNonMajor",
+		":separateMajorReleases"
+	],
+	"labels": ["dependencies"],
+	"rangeStrategy": "bump",
+	"lockFileMaintenance": {
+		"enabled": true,
+		"schedule": ["before 6am on monday"]
+	},
+	"packageRules": [
+		{
+			"description": "Automerge non-major updates",
+			"matchUpdateTypes": ["minor", "patch"],
+			"automerge": true
+		},
+		{
+			"description": "Group Discord.js ecosystem",
+			"matchPackagePatterns": ["^discord\\.js$", "^@discordjs/"],
+			"groupName": "discord.js"
+		},
+		{
+			"description": "Group Sentry packages",
+			"matchPackagePatterns": ["^@sentry/"],
+			"groupName": "sentry"
+		},
+		{
+			"description": "Group linting tools",
+			"matchPackageNames": ["@biomejs/biome", "typescript"],
+			"groupName": "linting & types"
+		},
+		{
+			"description": "Group Bun types",
+			"matchPackageNames": ["@types/bun"],
+			"groupName": "bun"
+		}
+	],
+	"schedule": ["before 6am on weekdays"],
+	"timezone": "America/New_York"
+}

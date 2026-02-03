@@ -1,0 +1,68 @@
+# CodeRabbit Configuration
+# https://docs.coderabbit.ai/guides/configure-coderabbit
+
+language: en-US
+
+reviews:
+  # Enable automatic reviews on PRs
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+
+  # Review profile - assertive gives more detailed feedback
+  profile: assertive
+
+  # Request changes vs just commenting
+  request_changes_workflow: true
+
+  # High-level summary at the top of reviews
+  high_level_summary: true
+
+  # Generate poem (fun addition, disable if you prefer)
+  poem: false
+
+  # Review hints to focus on
+  path_instructions:
+    - path: "src/core/**"
+      instructions: |
+        This is core framework code. Focus on:
+        - Type safety and proper TypeScript patterns
+        - Error handling robustness
+        - API design consistency
+        - Performance implications
+
+    - path: "src/guards/**"
+      instructions: |
+        Guards are validation functions. Ensure:
+        - Proper type narrowing
+        - Clear error messages in GuardResult
+        - No side effects
+
+    - path: "src/sparks/**"
+      instructions: |
+        Sparks are modular handlers. Check:
+        - Consistent patterns with other sparks
+        - Proper error handling in actions
+        - Guard usage where appropriate
+
+    - path: "**/*.test.ts"
+      instructions: |
+        Test files. Verify:
+        - Meaningful test descriptions
+        - Edge cases covered
+        - No flaky patterns
+
+  # Tools to run
+  tools:
+    biome:
+      enabled: true
+    shellcheck:
+      enabled: true
+    markdownlint:
+      enabled: true
+
+chat:
+  # Allow @coderabbitai mentions in PR comments
+  auto_reply: true

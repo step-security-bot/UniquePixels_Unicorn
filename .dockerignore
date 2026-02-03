@@ -1,0 +1,15 @@
+.claude
+.github
+.vscode
+.git
+.commitlintrc.ts
+.cspell.json
+.dockerignore
+.gitignore
+.mise.toml
+biome.json
+claude.md
+DCO
+Dockerfile
+README.md
+LICENSE

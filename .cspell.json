@@ -1,0 +1,15 @@
+{
+	"$schema": "https://raw.githubusercontent.com/streetsidesoftware/cspell/v8.17.5/cspell.schema.json",
+	"version": "0.2",
+	"useGitignore": true,
+	"readonly": true,
+	"dictionaryDefinitions": [
+		{
+			"name": "Unicorn Project",
+			"path": "./.cspell.dict.txt"
+		}
+	],
+	"dictionaries": ["Unicorn Project"],
+	"words": [],
+	"flagWords": []
+}

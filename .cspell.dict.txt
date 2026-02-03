@@ -1,0 +1,11 @@
+# Project names
+unicorndc
+
+# Contributor names
+
+# Tooling (package names, etc.)
+commitlintrc
+
+# Misc prop names from external sources
+Filenaming # biome
+shouty # biome

@@ -1,0 +1,149 @@
+{
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true
+	},
+	"files": {
+		"ignoreUnknown": false,
+		"includes": ["**", "!**/*.test.ts"]
+	},
+	"assist": { "actions": { "source": { "organizeImports": "on" } } },
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"complexity": {
+				"noExcessiveCognitiveComplexity": "on",
+				"noExcessiveNestedTestSuites": "on",
+				"noForEach": "on",
+				"noImplicitCoercions": "on",
+				"noUselessStringConcat": "on",
+				"noVoid": "on",
+				"useSimplifiedLogicExpression": "on",
+				"useWhile": "on"
+			},
+			"correctness": {
+				"noGlobalDirnameFilename": "on",
+				"noPrivateImports": "on",
+				"noProcessGlobal": "on",
+				"noUndeclaredDependencies": "on",
+				"noUndeclaredVariables": "on",
+				"useJsonImportAttributes": "on"
+			},
+			"nursery": {
+				"noContinue": "on",
+				"noDeprecatedImports": "on",
+				"noEqualsToNull": "on",
+				"noFloatingPromises": "on",
+				"noForIn": "on",
+				"noImportCycles": "on",
+				"noMisusedPromises": "on",
+				"noMultiStr": "on",
+				"noParametersOnlyUsedInRecursion": "on",
+				"noProto": "on",
+				"noShadow": "on",
+				"noUnnecessaryConditions": "on",
+				"noUnusedExpressions": "on",
+				"noUselessCatchBinding": "on",
+				"noUselessUndefined": "on",
+				"useArraySortCompare": "on",
+				"useConsistentArrowReturn": "on",
+				"useExhaustiveSwitchCases": "on",
+				"useExplicitType": "info",
+				"useFind": "on",
+				"useSpread": "on"
+			},
+			"performance": {
+				"noAwaitInLoops": "on",
+				"noBarrelFile": "on",
+				"noDelete": "on",
+				"noReExportAll": "on",
+				"useTopLevelRegex": "on"
+			},
+			"security": {
+				"noSecrets": "on"
+			},
+			"style": {
+				"noCommonJs": "on",
+				"noDoneCallback": "on",
+				"noExportedImports": "on",
+				"noInferrableTypes": "on",
+				"noNamespace": "on",
+				"noNegationElse": "on",
+				"noNestedTernary": "on",
+				"noParameterAssign": "on",
+				"noProcessEnv": "on",
+				"noShoutyConstants": "on",
+				"noSubstr": "on",
+				"noUnusedTemplateLiteral": "on",
+				"noUselessElse": "on",
+				"noYodaExpression": "on",
+				"useAsConstAssertion": "on",
+				"useAtIndex": "on",
+				"useBlockStatements": "on",
+				"useCollapsedElseIf": "on",
+				"useCollapsedIf": "on",
+				"useConsistentArrayType": "on",
+				"useConsistentBuiltinInstantiation": "on",
+				"useConsistentMemberAccessibility": {
+					"level": "on",
+					"options": { "accessibility": "explicit" }
+				},
+				"useDefaultParameterLast": "on",
+				"useDefaultSwitchClause": "on",
+				"useEnumInitializers": "on",
+				"useExplicitLengthCheck": "on",
+				"useFilenamingConvention": {
+					"level": "on",
+					"options": { "requireAscii": true, "filenameCases": ["kebab-case"] }
+				},
+				"useForOf": "on",
+				"useGroupedAccessorPairs": "on",
+				"useNamingConvention": {
+					"level": "on",
+					"options": {
+						"strictCase": false,
+						"requireAscii": true
+					}
+				},
+				"useNodeAssertStrict": "on",
+				"useNumberNamespace": "on",
+				"useNumericSeparators": "on",
+				"useObjectSpread": "on",
+				"useShorthandAssign": "on",
+				"useSingleVarDeclarator": "on",
+				"useSymbolDescription": "on",
+				"useThrowNewError": "on",
+				"useThrowOnlyError": "on",
+				"useTrimStartEnd": "on"
+			},
+			"suspicious": {
+				"noBitwiseOperators": "on",
+				"noConsole": "on",
+				"noConstantBinaryExpressions": "on",
+				"noDuplicateTestHooks": "on",
+				"noEmptyBlockStatements": "on",
+				"noEvolvingTypes": "on",
+				"noExportsInTest": "on",
+				"noFocusedTests": "on",
+				"noMisplacedAssertion": "on",
+				"noSkippedTests": "on",
+				"noUnassignedVariables": "on",
+				"noVar": "on",
+				"useAwait": "on",
+				"useErrorMessage": "on",
+				"useGuardForIn": "on",
+				"useNumberToFixedDigitsArgument": "error"
+			}
+		}
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "single"
+		},
+		"globals": ["Bun", "bun"]
+	}
+}
