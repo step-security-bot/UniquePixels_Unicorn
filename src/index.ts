@@ -40,7 +40,6 @@ logger.info('Starting Unicorn...');
 // Parse and validate configuration
 // THROWS on validation failure - app cannot function without valid config
 const config: ParsedConfig<typeof appConfig> = parseConfig(appConfig);
-// biome-ignore lint/security/noSecrets: log message, not a secret
 logger.debug('Configuration parsed successfully');
 logger.debug({ config }, 'Effective configuration:');
 
