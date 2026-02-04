@@ -19,13 +19,13 @@
 		},
 		{
 			"description": "Group Discord.js ecosystem",
-			"matchPackagePatterns": ["^discord\\.js$", "^@discordjs/"],
-			"groupName": "discord.js"
+			"groupName": "discord.js",
+			"matchPackageNames": ["/^discord\\.js$/", "/^@discordjs//"]
 		},
 		{
 			"description": "Group Sentry packages",
-			"matchPackagePatterns": ["^@sentry/"],
-			"groupName": "sentry"
+			"groupName": "sentry",
+			"matchPackageNames": ["/^@sentry//"]
 		},
 		{
 			"description": "Group linting tools",
