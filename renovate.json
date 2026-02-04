@@ -37,7 +37,5 @@
 			"matchPackageNames": ["@types/bun"],
 			"groupName": "bun"
 		}
-	],
-	"schedule": ["before 6am on weekdays"],
-	"timezone": "America/New_York"
+	]
 }
