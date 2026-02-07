@@ -88,6 +88,7 @@ async function handleComponent(
 		client.components,
 		client.componentPatterns,
 		interaction.customId,
+		client.logger,
 	);
 
 	if (!spark) {
@@ -129,6 +130,7 @@ async function handleModal(
 		client.components,
 		client.componentPatterns,
 		interaction.customId,
+		client.logger,
 	);
 
 	if (!spark) {

@@ -7,6 +7,7 @@ import {
 	defineComponent,
 	findComponentSpark,
 	isExactPattern,
+	isPrefixPattern,
 	matchCustomId,
 } from './component';
 
@@ -112,6 +113,48 @@ describe('matchCustomId', () => {
 		});
 	});
 
+	describe('prefix pattern matching', () => {
+		test('matches single-segment suffix', () => {
+			const result = matchCustomId('ban-123', 'ban-');
+			expect(result.matched).toBe(true);
+		});
+
+		test('matches non-digit suffix', () => {
+			const result = matchCustomId('ban-moderator', 'ban-');
+			expect(result.matched).toBe(true);
+		});
+
+		test('does not match empty suffix', () => {
+			const result = matchCustomId('ban-', 'ban-');
+			expect(result.matched).toBe(false);
+		});
+
+		test('does not match multi-segment suffix', () => {
+			const result = matchCustomId('ban-foo-bar', 'ban-');
+			expect(result.matched).toBe(false);
+		});
+
+		test('does not match when customId has no dash', () => {
+			const result = matchCustomId('ban', 'ban-');
+			expect(result.matched).toBe(false);
+		});
+
+		test('does not match when dash is at position 0', () => {
+			const result = matchCustomId('-123', 'ban-');
+			expect(result.matched).toBe(false);
+		});
+
+		test('matches multi-segment prefix', () => {
+			const result = matchCustomId('ticket-close-123', 'ticket-close-');
+			expect(result.matched).toBe(true);
+		});
+
+		test('does not match different prefix', () => {
+			const result = matchCustomId('ticket-open-123', 'ticket-close-');
+			expect(result.matched).toBe(false);
+		});
+	});
+
 	describe('regex pattern matching', () => {
 		test('matches regex pattern', () => {
 			const result = matchCustomId('action-delete-123', /^action-\w+-\d+$/);
@@ -173,6 +216,17 @@ describe('defineComponent', () => {
 		expect(spark.key).toBe('ticket-*-action');
 	});
 
+	test('creates component spark with prefix pattern', () => {
+		const spark = defineComponent({
+			id: 'ban-',
+			action: async () => {},
+		});
+
+		expect(spark.type).toBe('component');
+		expect(spark.id).toBe('ban-');
+		expect(spark.key).toBe('ban-');
+	});
+
 	test('creates component spark with regex pattern', () => {
 		const pattern = /^action-(?<type>\w+)-(?<id>\d+)$/;
 		const spark = defineComponent({
@@ -229,6 +283,19 @@ describe('ComponentSpark.matches', () => {
 		expect(spark.matches('ticket-close-123')).toBe(true);
 		expect(spark.matches('ticket-close-abc')).toBe(true);
 		expect(spark.matches('ticket-open-123')).toBe(false);
+	});
+
+	test('matches prefix pattern', () => {
+		const spark = defineComponent({
+			id: 'ban-',
+			action: async () => {},
+		});
+
+		expect(spark.matches('ban-123')).toBe(true);
+		expect(spark.matches('ban-moderator')).toBe(true);
+		expect(spark.matches('ban')).toBe(false);
+		expect(spark.matches('ban-')).toBe(false);
+		expect(spark.matches('ban-foo-bar')).toBe(false);
 	});
 
 	test('matches regex pattern', () => {
@@ -422,6 +489,35 @@ describe('ComponentSpark.register', () => {
 
 		expect(client.logger.debug).toHaveBeenCalled();
 	});
+
+	test('adds prefix pattern spark to client components collection', () => {
+		const spark = defineComponent({
+			id: 'ban-',
+			action: async () => {},
+		});
+
+		const client = createMockClient();
+		spark.register(client);
+
+		expect(client.components.has('ban-')).toBe(true);
+		expect(client.components.get('ban-')).toBe(spark);
+		expect(client.componentPatterns).toHaveLength(0);
+	});
+
+	test('logs prefix type on registration', () => {
+		const spark = defineComponent({
+			id: 'ban-',
+			action: async () => {},
+		});
+
+		const client = createMockClient();
+		spark.register(client);
+
+		expect(client.logger.debug).toHaveBeenCalledWith(
+			{ component: 'ban-', type: 'prefix' },
+			'Registered component',
+		);
+	});
 });
 
 describe('findComponentSpark', () => {
@@ -542,6 +638,231 @@ describe('findComponentSpark', () => {
 
 		expect(found).toBeUndefined();
 	});
+
+	describe('prefix matching', () => {
+		test('matches component by prefix pattern', () => {
+			const components = new Map<string, BaseComponentSpark>();
+			const componentPatterns: BaseComponentSpark[] = [];
+			const spark = defineComponent({
+				id: 'ban-',
+				action: async () => {},
+			});
+			components.set('ban-', spark as unknown as BaseComponentSpark);
+
+			const found = findComponentSpark(
+				components,
+				componentPatterns,
+				'ban-123456789012345678',
+			);
+
+			expect(found).toBe(spark);
+		});
+
+		test('matches multi-segment prefix', () => {
+			const components = new Map<string, BaseComponentSpark>();
+			const componentPatterns: BaseComponentSpark[] = [];
+			const spark = defineComponent({
+				id: 'ticket-close-',
+				action: async () => {},
+			});
+			components.set('ticket-close-', spark as unknown as BaseComponentSpark);
+
+			const found = findComponentSpark(
+				components,
+				componentPatterns,
+				'ticket-close-123456789012345678',
+			);
+
+			expect(found).toBe(spark);
+		});
+
+		test('matches non-digit suffix', () => {
+			const components = new Map<string, BaseComponentSpark>();
+			const componentPatterns: BaseComponentSpark[] = [];
+			const spark = defineComponent({
+				id: 'role-assign-',
+				action: async () => {},
+			});
+			components.set('role-assign-', spark as unknown as BaseComponentSpark);
+
+			const found = findComponentSpark(
+				components,
+				componentPatterns,
+				'role-assign-moderator',
+			);
+
+			expect(found).toBe(spark);
+		});
+
+		test('does not match multi-segment suffix', () => {
+			const components = new Map<string, BaseComponentSpark>();
+			const componentPatterns: BaseComponentSpark[] = [];
+			const spark = defineComponent({
+				id: 'ban-',
+				action: async () => {},
+			});
+			components.set('ban-', spark as unknown as BaseComponentSpark);
+
+			const found = findComponentSpark(
+				components,
+				componentPatterns,
+				'ban-foo-bar',
+			);
+
+			expect(found).toBeUndefined();
+		});
+
+		test('does not match empty suffix', () => {
+			const components = new Map<string, BaseComponentSpark>();
+			const componentPatterns: BaseComponentSpark[] = [];
+			const spark = defineComponent({
+				id: 'ban-',
+				action: async () => {},
+			});
+			components.set('ban-', spark as unknown as BaseComponentSpark);
+
+			const found = findComponentSpark(
+				components,
+				componentPatterns,
+				'ban-',
+			);
+
+			expect(found).toBeUndefined();
+		});
+
+		test('does not match when prefix is not registered', () => {
+			const components = new Map<string, BaseComponentSpark>();
+			const componentPatterns: BaseComponentSpark[] = [];
+
+			const found = findComponentSpark(
+				components,
+				componentPatterns,
+				'unknown-123456789012345678',
+			);
+
+			expect(found).toBeUndefined();
+		});
+
+		test('prefers exact match over prefix match', () => {
+			const components = new Map<string, BaseComponentSpark>();
+			const componentPatterns: BaseComponentSpark[] = [];
+
+			const exactSpark = defineComponent({
+				id: 'ban-123456789012345678',
+				action: async () => {},
+			});
+			const prefixSpark = defineComponent({
+				id: 'ban-',
+				action: async () => {},
+			});
+
+			components.set(
+				'ban-123456789012345678',
+				exactSpark as unknown as BaseComponentSpark,
+			);
+			components.set('ban-', prefixSpark as unknown as BaseComponentSpark);
+
+			const found = findComponentSpark(
+				components,
+				componentPatterns,
+				'ban-123456789012345678',
+			);
+
+			expect(found).toBe(exactSpark);
+		});
+
+		test('does not match when customId has no separator', () => {
+			const components = new Map<string, BaseComponentSpark>();
+			const componentPatterns: BaseComponentSpark[] = [];
+			const spark = defineComponent({
+				id: 'ban-',
+				action: async () => {},
+			});
+			components.set('ban-', spark as unknown as BaseComponentSpark);
+
+			const found = findComponentSpark(
+				components,
+				componentPatterns,
+				'ban123456789',
+			);
+
+			expect(found).toBeUndefined();
+		});
+
+		test('does not match when separator is at position 0', () => {
+			const components = new Map<string, BaseComponentSpark>();
+			const componentPatterns: BaseComponentSpark[] = [];
+
+			const found = findComponentSpark(
+				components,
+				componentPatterns,
+				'-123456789012345678',
+			);
+
+			expect(found).toBeUndefined();
+		});
+
+		test('falls through to pattern matching when prefix has no match', () => {
+			const components = new Map<string, BaseComponentSpark>();
+			const componentPatterns: BaseComponentSpark[] = [];
+
+			const patternSpark = defineComponent({
+				id: /^action-\d+$/,
+				action: async () => {},
+			});
+			componentPatterns.push(patternSpark as unknown as BaseComponentSpark);
+
+			const found = findComponentSpark(
+				components,
+				componentPatterns,
+				'action-123456789',
+			);
+
+			expect(found).toBe(patternSpark);
+		});
+
+		test('logs debug message when prefix routing matches', () => {
+			const components = new Map<string, BaseComponentSpark>();
+			const componentPatterns: BaseComponentSpark[] = [];
+			const spark = defineComponent({
+				id: 'ban-',
+				action: async () => {},
+			});
+			components.set('ban-', spark as unknown as BaseComponentSpark);
+
+			const mockLogger = { debug: mock(() => {}) };
+
+			findComponentSpark(
+				components,
+				componentPatterns,
+				'ban-123456789012345678',
+				mockLogger as unknown as Parameters<typeof findComponentSpark>[3],
+			);
+
+			expect(mockLogger.debug).toHaveBeenCalledWith(
+				{ component: 'ban-', customId: 'ban-123456789012345678' },
+				'Component matched via prefix routing',
+			);
+		});
+
+		test('does not log when no logger is provided', () => {
+			const components = new Map<string, BaseComponentSpark>();
+			const componentPatterns: BaseComponentSpark[] = [];
+			const spark = defineComponent({
+				id: 'ban-',
+				action: async () => {},
+			});
+			components.set('ban-', spark as unknown as BaseComponentSpark);
+
+			const found = findComponentSpark(
+				components,
+				componentPatterns,
+				'ban-123456789012345678',
+			);
+
+			expect(found).toBe(spark);
+		});
+	});
 });
 
 describe('isExactPattern', () => {
@@ -558,6 +879,12 @@ describe('isExactPattern', () => {
 		expect(isExactPattern('*')).toBe(false);
 	});
 
+	test('returns false for prefix pattern (trailing dash)', () => {
+		expect(isExactPattern('ban-')).toBe(false);
+		expect(isExactPattern('ticket-close-')).toBe(false);
+		expect(isExactPattern('-')).toBe(false);
+	});
+
 	test('returns false for regex pattern', () => {
 		expect(isExactPattern(/^test-\d+$/)).toBe(false);
 		expect(isExactPattern(/pattern/)).toBe(false);
@@ -566,6 +893,42 @@ describe('isExactPattern', () => {
 	test('returns true for empty string (edge case)', () => {
 		// Empty string has no wildcards, so technically "exact"
 		expect(isExactPattern('')).toBe(true);
+	});
+});
+
+describe('isPrefixPattern', () => {
+	test('returns true for string ending with dash', () => {
+		expect(isPrefixPattern('ban-')).toBe(true);
+		expect(isPrefixPattern('ticket-close-')).toBe(true);
+	});
+
+	test('returns false for string without trailing dash', () => {
+		expect(isPrefixPattern('ban')).toBe(false);
+		expect(isPrefixPattern('confirm-action')).toBe(false);
+	});
+
+	test('returns false for wildcard pattern even with trailing dash', () => {
+		expect(isPrefixPattern('ban-*-')).toBe(false);
+	});
+
+	test('returns false for regex pattern', () => {
+		expect(isPrefixPattern(/^ban-/)).toBe(false);
+	});
+
+	test('returns true for single dash', () => {
+		expect(isPrefixPattern('-')).toBe(true);
+	});
+
+	test('single-dash prefix pattern never matches any valid customId', () => {
+		// isPrefixPattern('-') is true, but matchCustomId requires the customId
+		// to start with the prefix minus its trailing dash — which is an empty string.
+		// Since matchCustomId rejects empty customIds, no real customId can match.
+		expect(matchCustomId('a-b', '-').matched).toBe(false);
+		expect(matchCustomId('-b', '-').matched).toBe(false);
+	});
+
+	test('returns false for empty string', () => {
+		expect(isPrefixPattern('')).toBe(false);
 	});
 });
 

@@ -57,9 +57,10 @@ export interface ComponentOptions<
 > {
 	/**
 	 * Pattern to match custom IDs against.
-	 * - Exact string: 'confirm-button'
-	 * - Wildcard: 'ticket-close-*'
-	 * - Regex: /^action-(\w+)-(\d+)$/
+	 * - Exact string: `'confirm-button'`
+	 * - Prefix (trailing dash): `'ban-'` — matches `ban-<suffix>`
+	 * - Wildcard: `'ticket-close-*'`
+	 * - Regex: `/^action-(\w+)-(\d+)$/`
 	 */
 	id: CustomIdPattern;
 	/** Guards to run before the action (optional) */
@@ -123,10 +124,26 @@ export interface ComponentSpark<
 const wildcardPatternCache: Map<string, RegExp> = new Map<string, RegExp>();
 
 /**
- * Checks if a pattern is an exact match (not a regex or wildcard).
+ * Checks if a pattern is an exact match (not a regex, wildcard, or prefix).
  */
 export function isExactPattern(pattern: CustomIdPattern): pattern is string {
-	return typeof pattern === 'string' && !pattern.includes('*');
+	return (
+		typeof pattern === 'string' &&
+		!pattern.includes('*') &&
+		!pattern.endsWith('-')
+	);
+}
+
+/**
+ * Checks if a pattern is a prefix match (trailing dash, no wildcards).
+ * A prefix pattern like `'ban-'` matches any customId of the form `ban-<suffix>`.
+ */
+export function isPrefixPattern(pattern: CustomIdPattern): pattern is string {
+	return (
+		typeof pattern === 'string' &&
+		pattern.endsWith('-') &&
+		!pattern.includes('*')
+	);
 }
 
 /**
@@ -177,6 +194,16 @@ export function matchCustomId(
 		return { matched: match !== null };
 	}
 
+	// Check for prefix pattern (trailing dash)
+	if (pattern.endsWith('-')) {
+		const separatorIndex = customId.lastIndexOf('-');
+		if (separatorIndex <= 0 || separatorIndex === customId.length - 1) {
+			return { matched: false };
+		}
+		const customPrefix = customId.slice(0, separatorIndex);
+		return { matched: `${customPrefix}-` === pattern };
+	}
+
 	// Exact match
 	return { matched: customId === pattern };
 }
@@ -191,6 +218,15 @@ export function matchCustomId(
  *   id: 'confirm-action',
  *   action: async (interaction, client) => {
  *     await interaction.reply('Confirmed!');
+ *   },
+ * });
+ *
+ * // Prefix match — trailing dash matches any single suffix segment
+ * export const ban = defineComponent({
+ *   id: 'ban-',
+ *   action: async (interaction, client) => {
+ *     const userId = interaction.customId.split('-').pop();
+ *     await interaction.guild.members.ban(userId);
  *   },
  * });
  *
@@ -272,15 +308,15 @@ export function defineComponent<
 			// Type narrowing happens at runtime via guards in execute().
 			const baseSpark = spark as BaseComponentSpark;
 
-			if (isExactPattern(id)) {
-				// Exact match - store in Map for O(1) lookup
+			if (isExactPattern(id) || isPrefixPattern(id)) {
+				// Exact and prefix matches — store in Map for O(1) lookup
 				client.components.set(key, baseSpark);
 				client.logger.debug(
-					{ component: key, type: 'exact' },
+					{ component: key, type: isPrefixPattern(id) ? 'prefix' : 'exact' },
 					'Registered component',
 				);
 			} else {
-				// Pattern (wildcard or regex) - store in array for linear search
+				// Pattern (wildcard or regex) — store in array for linear search
 				client.componentPatterns.push(baseSpark);
 				client.logger.debug(
 					{ component: key, type: 'pattern' },
@@ -295,19 +331,42 @@ export function defineComponent<
 
 /**
  * Finds a component spark that matches the given custom ID.
- * Checks exact matches first (O(1)), then patterns (O(n)).
+ *
+ * Lookup order:
+ * 1. **Exact match** — O(1) lookup in the components Map.
+ * 2. **Prefix match** — If the customId contains a `-`, the part before the
+ *    last `-` is looked up as `prefix-` in the components Map (O(1)). This
+ *    handles the common pattern of appending a dynamic suffix
+ *    (e.g. `ban-123456789` matching `id: 'ban-'`).
+ * 3. **Pattern match** — Linear scan over wildcard/regex patterns (O(n)).
  */
 export function findComponentSpark(
 	components: Map<string, BaseComponentSpark>,
 	componentPatterns: BaseComponentSpark[],
 	customId: string,
+	logger?: UnicornClient['logger'],
 ): BaseComponentSpark | undefined {
-	// First try exact match - O(1) lookup
+	// 1. Exact match — O(1) lookup (skip prefix patterns matched by their literal key)
 	const exact = components.get(customId);
-	if (exact) {
+	if (exact && !isPrefixPattern(exact.id)) {
 		return exact;
 	}
 
-	// Then check patterns - O(n) but only over pattern matchers
+	// 2. Prefix match — split on last '-', look for 'prefix-' in Map — O(1) lookup
+	const separatorIndex = customId.lastIndexOf('-');
+	if (separatorIndex > 0 && separatorIndex < customId.length - 1) {
+		const prefix = customId.slice(0, separatorIndex);
+		const prefixKey = `${prefix}-`;
+		const prefixMatch = components.get(prefixKey);
+		if (prefixMatch) {
+			logger?.debug(
+				{ component: prefixKey, customId },
+				'Component matched via prefix routing',
+			);
+			return prefixMatch;
+		}
+	}
+
+	// 3. Pattern match — O(n) over wildcard/regex matchers
 	return componentPatterns.find((spark) => spark.matches(customId));
 }

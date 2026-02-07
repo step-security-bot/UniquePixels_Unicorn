@@ -181,6 +181,16 @@ export const confirmButton = defineComponent({
   },
 });
 
+// Prefix match — trailing dash matches 'ban-<anything>' (one segment)
+export const ban = defineComponent({
+  id: 'ban-',
+  guards: [inCachedGuild],
+  action: async (interaction, client) => {
+    const userId = interaction.customId.split('-').pop();
+    await interaction.guild.members.ban(userId);
+  },
+});
+
 // Wildcard pattern
 export const ticketClose = defineComponent({
   id: 'ticket-close-*',
@@ -271,8 +281,9 @@ export const appConfig = {
 ### Component Lookup
 
 - Exact ID matches: `client.components` Map (O(1) lookup)
-- Pattern matches: `client.componentPatterns` array (O(n) search)
-- `findComponentSpark()` checks exact first, then patterns
+- Prefix matches (`id: 'ban-'`): `client.components` Map (O(1) lookup)
+- Pattern matches (wildcard/regex): `client.componentPatterns` array (O(n) search)
+- `findComponentSpark()` checks exact first, then prefix, then patterns
 
 ### Rate Limiting
 
