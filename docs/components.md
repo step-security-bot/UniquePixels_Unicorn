@@ -80,7 +80,11 @@ Prefix matches are stored in the same `Map` as exact matches for O(1) lookup.
 
 ### 3. Wildcard
 
-Use `*` in the `id` to match any substring. Useful when the dynamic part is in a non-trailing position or when you need multiple wildcards.
+Use `*` in the `id` to match any substring. Wildcards are necessary when the dynamic part is in a non-trailing position or when you have multiple dynamic segments.
+
+If the dynamic part is at the end, prefer a prefix match (`id: 'role-assign-'`) instead. Prefix matches use the same O(1) `Map` lookup as exact matches, while wildcards are compiled to a `RegExp` and checked via linear scan (O(n) over registered pattern components).
+
+#### Trailing wildcard — works, but a prefix match (`'role-assign-'`) would be O(1) for single-segment suffixes
 
 ```ts
 export const roleAssign = defineComponent({
@@ -98,7 +102,26 @@ new ButtonBuilder()
   .setLabel('Assign Moderator')
 ```
 
-Wildcards are compiled to a `RegExp` (cached after first use) and checked via linear scan — O(n) over registered pattern components.
+#### Non-trailing wildcard
+
+The dynamic segment is in the middle, so a prefix match can't work. This is where wildcards are necessary:
+
+```ts
+export const confirmDelete = defineComponent({
+  id: 'confirm-*-delete',
+  action: async (interaction, client) => {
+    // interaction.customId is "confirm-123-delete"
+    const itemId = interaction.customId.split('-')[1];
+    // itemId = "123"
+  },
+});
+```
+
+```ts
+new ButtonBuilder()
+  .setCustomId(`confirm-${item.id}-delete`)
+  .setLabel('Confirm Delete')
+```
 
 ### 4. Regex
 
