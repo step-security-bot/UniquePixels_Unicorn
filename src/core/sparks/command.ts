@@ -230,7 +230,7 @@ export function defineCommandWithAutocomplete<
 >(options: CommandWithAutocompleteOptions<TGuarded>): CommandSpark<TGuarded> {
 	const base = defineCommand(options);
 
-	return {
+	const spark: CommandSpark<TGuarded> = {
 		...base,
 		autocomplete: options.autocomplete,
 
@@ -249,7 +249,14 @@ export function defineCommandWithAutocomplete<
 				);
 			}
 		},
+
+		register(client: UnicornClient): void {
+			client.commands.set(base.command.name, spark as BaseCommandSpark);
+			client.logger.debug({ command: base.command.name }, 'Registered command');
+		},
 	};
+
+	return spark;
 }
 
 /**

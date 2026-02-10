@@ -1,0 +1,362 @@
+import { describe, expect, mock, test } from 'bun:test';
+import { type ClientEvents, Events } from 'discord.js';
+import type { UnicornClient } from '@/core/client';
+import type { Guard } from '@/core/guards';
+import { defineGatewayEvent } from './gateway-event';
+
+// ─── Test Helpers ────────────────────────────────────────────────
+
+type MessageCreateArg = ClientEvents[typeof Events.MessageCreate][0];
+
+function createMockClient(): UnicornClient {
+	return {
+		on: mock(() => {}),
+		once: mock(() => {}),
+		logger: {
+			debug: mock(() => {}),
+			info: mock(() => {}),
+			warn: mock(() => {}),
+			error: mock(() => {}),
+		},
+	} as unknown as UnicornClient;
+}
+
+function createMockMessage(): MessageCreateArg {
+	return { content: 'hello' } as unknown as MessageCreateArg;
+}
+
+// ─── Tests ───────────────────────────────────────────────────────
+
+describe('defineGatewayEvent', () => {
+	test('creates spark with correct type', () => {
+		const spark = defineGatewayEvent({
+			event: Events.MessageCreate,
+			action: async () => {},
+		});
+
+		expect(spark.type).toBe('gateway-event');
+	});
+
+	test('sets event name from options', () => {
+		const spark = defineGatewayEvent({
+			event: Events.MessageCreate,
+			action: async () => {},
+		});
+
+		expect(spark.event).toBe(Events.MessageCreate);
+	});
+
+	test('defaults once to false', () => {
+		const spark = defineGatewayEvent({
+			event: Events.MessageCreate,
+			action: async () => {},
+		});
+
+		expect(spark.once).toBe(false);
+	});
+
+	test('sets once to true when specified', () => {
+		const spark = defineGatewayEvent({
+			event: Events.ClientReady,
+			once: true,
+			action: async () => {},
+		});
+
+		expect(spark.once).toBe(true);
+	});
+
+	test('defaults guards to empty array', () => {
+		const spark = defineGatewayEvent({
+			event: Events.MessageCreate,
+			action: async () => {},
+		});
+
+		expect(spark.guards).toEqual([]);
+	});
+
+	test('preserves provided guards', () => {
+		const guard = mock(
+			(input: MessageCreateArg) =>
+				({ ok: true as const, value: input }) as const,
+		) as Guard<MessageCreateArg, MessageCreateArg>;
+		const spark = defineGatewayEvent({
+			event: Events.MessageCreate,
+			guards: [guard],
+			action: async () => {},
+		});
+
+		expect(spark.guards).toHaveLength(1);
+		expect(spark.guards[0]).toBe(guard);
+	});
+
+	test('stores action reference', () => {
+		const action = mock(async () => {});
+		const spark = defineGatewayEvent({
+			event: Events.MessageCreate,
+			action,
+		});
+
+		expect(spark.action).toBe(action);
+	});
+
+	describe('execute', () => {
+		test('calls action when no guards are defined', async () => {
+			const action = mock(async () => {});
+			const spark = defineGatewayEvent({
+				event: Events.MessageCreate,
+				action,
+			});
+
+			const client = createMockClient();
+			const msg = createMockMessage();
+			const result = await spark.execute(msg, client);
+
+			expect(result.ok).toBe(true);
+			expect(action).toHaveBeenCalledTimes(1);
+			expect(action).toHaveBeenCalledWith(msg, client);
+		});
+
+		test('runs guards and calls action on success', async () => {
+			const guard = mock(
+				(input: MessageCreateArg) =>
+					({ ok: true as const, value: input }) as const,
+			) as Guard<MessageCreateArg, MessageCreateArg>;
+			const action = mock(async () => {});
+			const spark = defineGatewayEvent({
+				event: Events.MessageCreate,
+				guards: [guard],
+				action,
+			});
+
+			const client = createMockClient();
+			const result = await spark.execute(createMockMessage(), client);
+
+			expect(result.ok).toBe(true);
+			expect(guard).toHaveBeenCalledTimes(1);
+			expect(action).toHaveBeenCalledTimes(1);
+		});
+
+		test('returns guard failure and does NOT call action', async () => {
+			const guard = mock(
+				() => ({ ok: false as const, reason: 'Bot message' }) as const,
+			) as Guard<MessageCreateArg, MessageCreateArg>;
+			const action = mock(async () => {});
+			const spark = defineGatewayEvent({
+				event: Events.MessageCreate,
+				guards: [guard],
+				action,
+			});
+
+			const client = createMockClient();
+			const result = await spark.execute(createMockMessage(), client);
+
+			expect(result.ok).toBe(false);
+			if (!result.ok) {
+				expect(result.reason).toBe('Bot message');
+			}
+			expect(action).not.toHaveBeenCalled();
+		});
+
+		test('logs debug on guard failure', async () => {
+			const guard = mock(
+				() =>
+					({ ok: false as const, reason: 'Not in guild' }) as const,
+			) as Guard<MessageCreateArg, MessageCreateArg>;
+			const spark = defineGatewayEvent({
+				event: Events.MessageCreate,
+				guards: [guard],
+				action: async () => {},
+			});
+
+			const client = createMockClient();
+			await spark.execute(createMockMessage(), client);
+
+			expect(client.logger.debug).toHaveBeenCalledWith(
+				{ event: Events.MessageCreate, reason: 'Not in guild' },
+				'Gateway event guard failed',
+			);
+		});
+
+		test('logs error when action throws', async () => {
+			const spark = defineGatewayEvent({
+				event: Events.MessageCreate,
+				action: async () => {
+					throw new Error('action broke');
+				},
+			});
+
+			const client = createMockClient();
+			await spark.execute(createMockMessage(), client);
+
+			expect(client.logger.error).toHaveBeenCalledWith(
+				expect.objectContaining({ event: Events.MessageCreate }),
+				'Gateway event action failed',
+			);
+		});
+
+		test('returns ok result even when action throws', async () => {
+			const spark = defineGatewayEvent({
+				event: Events.MessageCreate,
+				action: async () => {
+					throw new Error('boom');
+				},
+			});
+
+			const client = createMockClient();
+			const result = await spark.execute(createMockMessage(), client);
+
+			expect(result.ok).toBe(true);
+		});
+
+		test('short-circuits on first guard failure', async () => {
+			const guard1 = mock(
+				() =>
+					({
+						ok: false as const,
+						reason: 'First failed',
+					}) as const,
+			) as Guard<MessageCreateArg, MessageCreateArg>;
+			const guard2 = mock(
+				(input: MessageCreateArg) =>
+					({ ok: true as const, value: input }) as const,
+			) as Guard<MessageCreateArg, MessageCreateArg>;
+			const action = mock(async () => {});
+			const spark = defineGatewayEvent({
+				event: Events.MessageCreate,
+				guards: [guard1, guard2],
+				action,
+			});
+
+			const client = createMockClient();
+			await spark.execute(createMockMessage(), client);
+
+			expect(guard1).toHaveBeenCalledTimes(1);
+			expect(guard2).not.toHaveBeenCalled();
+			expect(action).not.toHaveBeenCalled();
+		});
+
+		test('handles async guards', async () => {
+			const guard = mock(
+				async (input: MessageCreateArg) =>
+					({ ok: true as const, value: input }) as const,
+			) as Guard<MessageCreateArg, MessageCreateArg>;
+			const action = mock(async () => {});
+			const spark = defineGatewayEvent({
+				event: Events.MessageCreate,
+				guards: [guard],
+				action,
+			});
+
+			const client = createMockClient();
+			const result = await spark.execute(createMockMessage(), client);
+
+			expect(result.ok).toBe(true);
+			expect(action).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	describe('register', () => {
+		test('calls client.on for recurring events', () => {
+			const spark = defineGatewayEvent({
+				event: Events.MessageCreate,
+				once: false,
+				action: async () => {},
+			});
+
+			const client = createMockClient();
+			spark.register(client);
+
+			expect(client.on).toHaveBeenCalledTimes(1);
+			expect(client.once).not.toHaveBeenCalled();
+
+			const calls = (client.on as ReturnType<typeof mock>).mock.calls;
+			expect(calls[0]?.[0]).toBe(Events.MessageCreate);
+		});
+
+		test('calls client.once for one-time events', () => {
+			const spark = defineGatewayEvent({
+				event: Events.ClientReady,
+				once: true,
+				action: async () => {},
+			});
+
+			const client = createMockClient();
+			spark.register(client);
+
+			expect(client.once).toHaveBeenCalledTimes(1);
+			expect(client.on).not.toHaveBeenCalled();
+
+			const calls = (client.once as ReturnType<typeof mock>).mock.calls;
+			expect(calls[0]?.[0]).toBe(Events.ClientReady);
+		});
+
+		test('logs debug message on registration', () => {
+			const spark = defineGatewayEvent({
+				event: Events.MessageCreate,
+				once: false,
+				action: async () => {},
+			});
+
+			const client = createMockClient();
+			spark.register(client);
+
+			expect(client.logger.debug).toHaveBeenCalledWith(
+				{ event: Events.MessageCreate, once: false },
+				'Registered gateway event',
+			);
+		});
+
+		test('registered handler catches errors from execute', async () => {
+			const spark = defineGatewayEvent({
+				event: Events.MessageCreate,
+				action: async () => {
+					throw new Error('handler error');
+				},
+			});
+
+			const client = createMockClient();
+			spark.register(client);
+
+			// Get the registered handler
+			const calls = (client.on as ReturnType<typeof mock>).mock.calls;
+			const handler = calls[0]?.[1] as (
+				...args: unknown[]
+			) => Promise<void>;
+
+			// Call the handler — should not throw
+			await handler({ content: 'hello' });
+
+			// The error should have been logged via execute's action error handling
+			expect(client.logger.error).toHaveBeenCalled();
+		});
+
+		test('registered handler catches unexpected errors when execute rejects', async () => {
+			// A guard that throws (rather than returning a failure) causes
+			// execute() to reject, hitting the outer catch in the handler.
+			const throwingGuard = mock(() => {
+				throw new Error('guard exploded');
+			}) as Guard<MessageCreateArg, MessageCreateArg>;
+			const spark = defineGatewayEvent({
+				event: Events.MessageCreate,
+				guards: [throwingGuard],
+				action: async () => {},
+			});
+
+			const client = createMockClient();
+			spark.register(client);
+
+			const calls = (client.on as ReturnType<typeof mock>).mock.calls;
+			const handler = calls[0]?.[1] as (
+				...args: unknown[]
+			) => Promise<void>;
+
+			// Should not throw — error is caught by the registered handler
+			await handler({ content: 'hello' });
+
+			expect(client.logger.error).toHaveBeenCalledWith(
+				expect.objectContaining({ event: Events.MessageCreate }),
+				'Gateway event handler failed unexpectedly',
+			);
+		});
+	});
+});

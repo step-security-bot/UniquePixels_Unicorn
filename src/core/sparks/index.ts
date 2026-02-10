@@ -11,6 +11,13 @@ export {
 	hasAutocomplete,
 } from './command';
 
+// Command groups (subcommands & subcommand groups)
+export {
+	type CommandGroupOptions,
+	defineCommandGroup,
+	type SubcommandHandler,
+} from './command-group';
+
 // Component sparks
 export {
 	type AnyComponentInteraction,

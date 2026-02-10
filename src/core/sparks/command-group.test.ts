@@ -1,0 +1,931 @@
+import { describe, expect, mock, test } from 'bun:test';
+import type {
+	AutocompleteInteraction,
+	ChatInputCommandInteraction,
+	SlashCommandBuilder,
+} from 'discord.js';
+import { Collection } from 'discord.js';
+import type { UnicornClient } from '@/core/client';
+import { hasAutocomplete } from './command';
+import { defineCommandGroup } from './command-group';
+
+// ─── Test Helpers ────────────────────────────────────────────────
+
+function createMockClient(): UnicornClient {
+	return {
+		commands: new Collection(),
+		logger: {
+			debug: mock(() => {}),
+			info: mock(() => {}),
+			warn: mock(() => {}),
+			error: mock(() => {}),
+		},
+	} as unknown as UnicornClient;
+}
+
+function createMockCommand(name: string) {
+	return { name } as unknown as SlashCommandBuilder;
+}
+
+function createMockInteraction(
+	subcommand: string | null,
+	group: string | null = null,
+): ChatInputCommandInteraction {
+	return {
+		commandName: 'test',
+		options: {
+			getSubcommand: mock((required?: boolean) => {
+				if (subcommand === null && required !== false) {
+					throw new Error('No subcommand');
+				}
+				return subcommand;
+			}),
+			getSubcommandGroup: mock((required?: boolean) => {
+				if (group === null && required !== false) {
+					throw new Error('No subcommand group');
+				}
+				return group;
+			}),
+		},
+		user: { id: '123456789012345678' },
+		replied: false,
+		deferred: false,
+		reply: mock(async () => {}),
+	} as unknown as ChatInputCommandInteraction;
+}
+
+function createMockAutocompleteInteraction(
+	subcommand: string | null,
+	group: string | null = null,
+): AutocompleteInteraction {
+	return {
+		commandName: 'test',
+		options: {
+			getSubcommand: mock((required?: boolean) => {
+				if (subcommand === null && required !== false) {
+					throw new Error('No subcommand');
+				}
+				return subcommand;
+			}),
+			getSubcommandGroup: mock((required?: boolean) => {
+				if (group === null && required !== false) {
+					throw new Error('No subcommand group');
+				}
+				return group;
+			}),
+			getFocused: mock(() => ''),
+		},
+		respond: mock(async () => {}),
+	} as unknown as AutocompleteInteraction;
+}
+
+// ─── Tests ───────────────────────────────────────────────────────
+
+describe('defineCommandGroup', () => {
+	test('creates spark with correct type and id', () => {
+		const spark = defineCommandGroup({
+			command: createMockCommand('manage'),
+			subcommands: {
+				list: { action: async () => {} },
+			},
+		});
+
+		expect(spark.type).toBe('command');
+		expect(spark.id).toBe('manage');
+	});
+
+	test('stores the command builder', () => {
+		const builder = createMockCommand('manage');
+		const spark = defineCommandGroup({
+			command: builder,
+			subcommands: {
+				list: { action: async () => {} },
+			},
+		});
+
+		expect(spark.command).toBe(builder);
+	});
+
+	test('defaults guards to empty array', () => {
+		const spark = defineCommandGroup({
+			command: createMockCommand('manage'),
+			subcommands: {
+				list: { action: async () => {} },
+			},
+		});
+
+		expect(spark.guards).toEqual([]);
+	});
+
+	test('preserves provided guards', () => {
+		const guard = (input: ChatInputCommandInteraction) => ({
+			ok: true as const,
+			value: input,
+		});
+
+		const spark = defineCommandGroup({
+			command: createMockCommand('manage'),
+			guards: [guard],
+			subcommands: {
+				list: { action: async () => {} },
+			},
+		});
+
+		expect(spark.guards).toHaveLength(1);
+	});
+});
+
+describe('CommandGroupSpark.execute', () => {
+	describe('subcommand routing', () => {
+		test('routes to the correct subcommand', async () => {
+			const listAction = mock(async () => {});
+			const addAction = mock(async () => {});
+
+			const spark = defineCommandGroup({
+				command: createMockCommand('manage'),
+				subcommands: {
+					list: { action: listAction },
+					add: { action: addAction },
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockInteraction('list');
+
+			await spark.execute(interaction, client);
+
+			expect(listAction).toHaveBeenCalledWith(interaction, client);
+			expect(addAction).not.toHaveBeenCalled();
+		});
+
+		test('routes to the correct group + subcommand', async () => {
+			const addAction = mock(async () => {});
+			const removeAction = mock(async () => {});
+
+			const spark = defineCommandGroup({
+				command: createMockCommand('settings'),
+				groups: {
+					roles: {
+						add: { action: addAction },
+						remove: { action: removeAction },
+					},
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockInteraction('add', 'roles');
+
+			await spark.execute(interaction, client);
+
+			expect(addAction).toHaveBeenCalledWith(interaction, client);
+			expect(removeAction).not.toHaveBeenCalled();
+		});
+
+		test('prefers group handler when group is present', async () => {
+			const directAdd = mock(async () => {});
+			const groupedAdd = mock(async () => {});
+
+			const spark = defineCommandGroup({
+				command: createMockCommand('cmd'),
+				subcommands: {
+					add: { action: directAdd },
+				},
+				groups: {
+					items: {
+						add: { action: groupedAdd },
+					},
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockInteraction('add', 'items');
+
+			await spark.execute(interaction, client);
+
+			expect(groupedAdd).toHaveBeenCalled();
+			expect(directAdd).not.toHaveBeenCalled();
+		});
+
+		test('returns failure when subcommand has no handler', async () => {
+			const spark = defineCommandGroup({
+				command: createMockCommand('manage'),
+				subcommands: {
+					list: { action: async () => {} },
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockInteraction('unknown');
+
+			const result = await spark.execute(interaction, client);
+
+			expect(result.ok).toBe(false);
+			if (!result.ok) {
+				expect(result.reason).toBe(
+					'This subcommand is not available.',
+				);
+			}
+		});
+
+		test('returns failure when group has no handler for subcommand', async () => {
+			const spark = defineCommandGroup({
+				command: createMockCommand('settings'),
+				groups: {
+					roles: {
+						add: { action: async () => {} },
+					},
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockInteraction('delete', 'roles');
+
+			const result = await spark.execute(interaction, client);
+
+			expect(result.ok).toBe(false);
+		});
+
+		test('returns failure when group itself does not exist', async () => {
+			const spark = defineCommandGroup({
+				command: createMockCommand('settings'),
+				groups: {
+					roles: {
+						add: { action: async () => {} },
+					},
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockInteraction('add', 'channels');
+
+			const result = await spark.execute(interaction, client);
+
+			expect(result.ok).toBe(false);
+		});
+
+		test('warns when no handler matches', async () => {
+			const spark = defineCommandGroup({
+				command: createMockCommand('manage'),
+				subcommands: {
+					list: { action: async () => {} },
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockInteraction('missing');
+
+			await spark.execute(interaction, client);
+
+			expect(client.logger.warn).toHaveBeenCalledWith(
+				{
+					command: 'manage',
+					subcommand: 'missing',
+					group: null,
+				},
+				'No handler for subcommand',
+			);
+		});
+	});
+
+	describe('top-level guards', () => {
+		test('runs top-level guards before subcommand action', async () => {
+			const calls: string[] = [];
+
+			const guard = (input: ChatInputCommandInteraction) => {
+				calls.push('guard');
+				return { ok: true as const, value: input };
+			};
+
+			const spark = defineCommandGroup({
+				command: createMockCommand('manage'),
+				guards: [guard],
+				subcommands: {
+					list: {
+						action: async () => {
+							calls.push('action');
+						},
+					},
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockInteraction('list');
+
+			await spark.execute(interaction, client);
+
+			expect(calls).toEqual(['guard', 'action']);
+		});
+
+		test('does not execute subcommand when top-level guard fails', async () => {
+			const actionMock = mock(async () => {});
+
+			const failingGuard = () => ({
+				ok: false as const,
+				reason: 'Not in guild',
+			});
+
+			const spark = defineCommandGroup({
+				command: createMockCommand('manage'),
+				guards: [failingGuard],
+				subcommands: {
+					list: { action: actionMock },
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockInteraction('list');
+
+			const result = await spark.execute(interaction, client);
+
+			expect(result.ok).toBe(false);
+			if (!result.ok) {
+				expect(result.reason).toBe('Not in guild');
+			}
+			expect(actionMock).not.toHaveBeenCalled();
+		});
+
+		test('logs debug when top-level guard fails', async () => {
+			const spark = defineCommandGroup({
+				command: createMockCommand('manage'),
+				guards: [
+					() => ({ ok: false as const, reason: 'Test failure' }),
+				],
+				subcommands: {
+					list: { action: async () => {} },
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockInteraction('list');
+
+			await spark.execute(interaction, client);
+
+			expect(client.logger.debug).toHaveBeenCalledWith(
+				{ command: 'manage', reason: 'Test failure' },
+				'Command group guard failed',
+			);
+		});
+	});
+
+	describe('subcommand guards', () => {
+		test('runs subcommand guards after top-level guards', async () => {
+			const calls: string[] = [];
+
+			const topGuard = (input: ChatInputCommandInteraction) => {
+				calls.push('top-guard');
+				return { ok: true as const, value: input };
+			};
+
+			const subGuard = (input: ChatInputCommandInteraction) => {
+				calls.push('sub-guard');
+				return { ok: true as const, value: input };
+			};
+
+			const spark = defineCommandGroup({
+				command: createMockCommand('manage'),
+				guards: [topGuard],
+				subcommands: {
+					add: {
+						guards: [subGuard],
+						action: async () => {
+							calls.push('action');
+						},
+					},
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockInteraction('add');
+
+			await spark.execute(interaction, client);
+
+			expect(calls).toEqual(['top-guard', 'sub-guard', 'action']);
+		});
+
+		test('does not execute action when subcommand guard fails', async () => {
+			const actionMock = mock(async () => {});
+
+			const spark = defineCommandGroup({
+				command: createMockCommand('manage'),
+				subcommands: {
+					add: {
+						guards: [
+							() => ({
+								ok: false as const,
+								reason: 'Missing permissions',
+							}),
+						],
+						action: actionMock,
+					},
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockInteraction('add');
+
+			const result = await spark.execute(interaction, client);
+
+			expect(result.ok).toBe(false);
+			if (!result.ok) {
+				expect(result.reason).toBe('Missing permissions');
+			}
+			expect(actionMock).not.toHaveBeenCalled();
+		});
+
+		test('logs debug when subcommand guard fails', async () => {
+			const spark = defineCommandGroup({
+				command: createMockCommand('manage'),
+				subcommands: {
+					add: {
+						guards: [
+							() => ({
+								ok: false as const,
+								reason: 'No perms',
+							}),
+						],
+						action: async () => {},
+					},
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockInteraction('add');
+
+			await spark.execute(interaction, client);
+
+			expect(client.logger.debug).toHaveBeenCalledWith(
+				{ command: 'manage add', reason: 'No perms' },
+				'Subcommand guard failed',
+			);
+		});
+
+		test('skips subcommand guard step when no guards defined', async () => {
+			const actionMock = mock(async () => {});
+
+			const spark = defineCommandGroup({
+				command: createMockCommand('manage'),
+				subcommands: {
+					list: { action: actionMock },
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockInteraction('list');
+
+			const result = await spark.execute(interaction, client);
+
+			expect(result.ok).toBe(true);
+			expect(actionMock).toHaveBeenCalled();
+		});
+	});
+
+	describe('error handling', () => {
+		test('logs error when subcommand action throws', async () => {
+			const spark = defineCommandGroup({
+				command: createMockCommand('manage'),
+				subcommands: {
+					add: {
+						action: async () => {
+							throw new Error('DB connection failed');
+						},
+					},
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockInteraction('add');
+
+			const result = await spark.execute(interaction, client);
+
+			// Guards passed so result is ok — error is logged, not thrown
+			expect(result.ok).toBe(true);
+			expect(client.logger.error).toHaveBeenCalled();
+		});
+
+		test('includes route key in error log for direct subcommand', async () => {
+			const spark = defineCommandGroup({
+				command: createMockCommand('manage'),
+				subcommands: {
+					add: {
+						action: async () => {
+							throw new Error('fail');
+						},
+					},
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockInteraction('add');
+
+			await spark.execute(interaction, client);
+
+			const errorCalls = (client.logger.error as ReturnType<typeof mock>)
+				.mock.calls;
+			expect(errorCalls).toHaveLength(1);
+			expect(errorCalls[0]?.[0].command).toBe('manage add');
+		});
+
+		test('includes route key in error log for grouped subcommand', async () => {
+			const spark = defineCommandGroup({
+				command: createMockCommand('settings'),
+				groups: {
+					roles: {
+						add: {
+							action: async () => {
+								throw new Error('fail');
+							},
+						},
+					},
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockInteraction('add', 'roles');
+
+			await spark.execute(interaction, client);
+
+			const errorCalls = (client.logger.error as ReturnType<typeof mock>)
+				.mock.calls;
+			expect(errorCalls).toHaveLength(1);
+			expect(errorCalls[0]?.[0].command).toBe('settings roles add');
+		});
+	});
+});
+
+describe('CommandGroupSpark.register', () => {
+	test('adds spark to client.commands collection', () => {
+		const spark = defineCommandGroup({
+			command: createMockCommand('manage'),
+			subcommands: {
+				list: { action: async () => {} },
+			},
+		});
+
+		const client = createMockClient();
+		spark.register(client);
+
+		expect(client.commands.has('manage')).toBe(true);
+		expect(client.commands.get('manage')).toBe(spark);
+	});
+
+	test('logs debug with subcommand and group info', () => {
+		const spark = defineCommandGroup({
+			command: createMockCommand('settings'),
+			subcommands: {
+				view: { action: async () => {} },
+			},
+			groups: {
+				roles: {
+					add: { action: async () => {} },
+				},
+			},
+		});
+
+		const client = createMockClient();
+		spark.register(client);
+
+		expect(client.logger.debug).toHaveBeenCalledWith(
+			{
+				command: 'settings',
+				subcommands: ['view'],
+				groups: ['roles'],
+			},
+			'Registered command group',
+		);
+	});
+});
+
+describe('CommandGroupSpark autocomplete', () => {
+	test('hasAutocomplete returns true when a subcommand has autocomplete', () => {
+		const spark = defineCommandGroup({
+			command: createMockCommand('manage'),
+			subcommands: {
+				search: {
+					autocomplete: async () => {},
+					action: async () => {},
+				},
+				list: { action: async () => {} },
+			},
+		});
+
+		expect(hasAutocomplete(spark)).toBe(true);
+	});
+
+	test('hasAutocomplete returns false when no subcommand has autocomplete', () => {
+		const spark = defineCommandGroup({
+			command: createMockCommand('manage'),
+			subcommands: {
+				list: { action: async () => {} },
+			},
+		});
+
+		expect(hasAutocomplete(spark)).toBe(false);
+	});
+
+	test('hasAutocomplete returns true when grouped subcommand has autocomplete', () => {
+		const spark = defineCommandGroup({
+			command: createMockCommand('settings'),
+			groups: {
+				roles: {
+					add: {
+						autocomplete: async () => {},
+						action: async () => {},
+					},
+				},
+			},
+		});
+
+		expect(hasAutocomplete(spark)).toBe(true);
+	});
+
+	test('autocomplete property routes to correct subcommand handler', async () => {
+		const searchAC = mock(async () => {});
+
+		const spark = defineCommandGroup({
+			command: createMockCommand('manage'),
+			subcommands: {
+				search: {
+					autocomplete: searchAC,
+					action: async () => {},
+				},
+				list: { action: async () => {} },
+			},
+		});
+
+		const client = createMockClient();
+		const interaction = createMockAutocompleteInteraction('search');
+
+		// Call the autocomplete property directly (not executeAutocomplete)
+		await spark.autocomplete!(interaction, client);
+
+		expect(searchAC).toHaveBeenCalledWith(interaction, client);
+	});
+
+	test('autocomplete property routes to correct grouped subcommand', async () => {
+		const addAC = mock(async () => {});
+
+		const spark = defineCommandGroup({
+			command: createMockCommand('settings'),
+			groups: {
+				roles: {
+					add: {
+						autocomplete: addAC,
+						action: async () => {},
+					},
+				},
+			},
+		});
+
+		const client = createMockClient();
+		const interaction = createMockAutocompleteInteraction('add', 'roles');
+
+		await spark.autocomplete!(interaction, client);
+
+		expect(addAC).toHaveBeenCalledWith(interaction, client);
+	});
+
+	test('autocomplete property is a no-op when subcommand has no autocomplete', async () => {
+		const spark = defineCommandGroup({
+			command: createMockCommand('manage'),
+			subcommands: {
+				search: {
+					autocomplete: async () => {},
+					action: async () => {},
+				},
+				list: { action: async () => {} },
+			},
+		});
+
+		const interaction = createMockAutocompleteInteraction('list');
+		const client = createMockClient();
+
+		// Should not throw — handler has no autocomplete so it's skipped
+		await spark.autocomplete!(interaction, client);
+	});
+
+	describe('executeAutocomplete', () => {
+		test('routes autocomplete to the correct subcommand handler', async () => {
+			const searchAC = mock(async () => {});
+
+			const spark = defineCommandGroup({
+				command: createMockCommand('manage'),
+				subcommands: {
+					search: {
+						autocomplete: searchAC,
+						action: async () => {},
+					},
+					list: { action: async () => {} },
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockAutocompleteInteraction('search');
+
+			await spark.executeAutocomplete!(interaction, client);
+
+			expect(searchAC).toHaveBeenCalledWith(interaction, client);
+		});
+
+		test('routes autocomplete to the correct grouped subcommand', async () => {
+			const addAC = mock(async () => {});
+
+			const spark = defineCommandGroup({
+				command: createMockCommand('settings'),
+				groups: {
+					roles: {
+						add: {
+							autocomplete: addAC,
+							action: async () => {},
+						},
+					},
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockAutocompleteInteraction(
+				'add',
+				'roles',
+			);
+
+			await spark.executeAutocomplete!(interaction, client);
+
+			expect(addAC).toHaveBeenCalledWith(interaction, client);
+		});
+
+		test('handles subcommand without autocomplete gracefully', async () => {
+			const spark = defineCommandGroup({
+				command: createMockCommand('manage'),
+				subcommands: {
+					search: {
+						autocomplete: async () => {},
+						action: async () => {},
+					},
+					list: { action: async () => {} },
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockAutocompleteInteraction('list');
+
+			// Should not throw
+			await spark.executeAutocomplete!(interaction, client);
+
+			expect(client.logger.debug).toHaveBeenCalledWith(
+				{ command: 'manage', subcommand: 'list', group: null },
+				'No autocomplete handler for subcommand',
+			);
+		});
+
+		test('logs warning when autocomplete handler throws', async () => {
+			const spark = defineCommandGroup({
+				command: createMockCommand('manage'),
+				subcommands: {
+					search: {
+						autocomplete: async () => {
+							throw new Error('API timeout');
+						},
+						action: async () => {},
+					},
+				},
+			});
+
+			const client = createMockClient();
+			const interaction = createMockAutocompleteInteraction('search');
+
+			await spark.executeAutocomplete!(interaction, client);
+
+			expect(client.logger.warn).toHaveBeenCalled();
+		});
+
+		test('handles unknown subcommand in autocomplete gracefully', async () => {
+			const spark = defineCommandGroup({
+				command: createMockCommand('manage'),
+				subcommands: {
+					search: {
+						autocomplete: async () => {},
+						action: async () => {},
+					},
+				},
+			});
+
+			const client = createMockClient();
+			const interaction =
+				createMockAutocompleteInteraction('nonexistent');
+
+			// Should not throw
+			await spark.executeAutocomplete!(interaction, client);
+		});
+	});
+});
+
+describe('edge cases', () => {
+	test('throws when no subcommands or groups are provided', () => {
+		expect(() =>
+			defineCommandGroup({
+				command: createMockCommand('empty'),
+			}),
+		).toThrow(
+			'defineCommandGroup("empty"): at least one subcommand or group must be provided',
+		);
+	});
+
+	test('returns failure when both subcommand and group are null', async () => {
+		const spark = defineCommandGroup({
+			command: createMockCommand('manage'),
+			subcommands: {
+				list: { action: async () => {} },
+			},
+		});
+
+		const client = createMockClient();
+		const interaction = createMockInteraction(null, null);
+
+		const result = await spark.execute(interaction, client);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.reason).toBe('This subcommand is not available.');
+		}
+	});
+
+	test('multiple subcommands each get correct calls', async () => {
+		const actions = {
+			a: mock(async () => {}),
+			b: mock(async () => {}),
+			c: mock(async () => {}),
+		};
+
+		const spark = defineCommandGroup({
+			command: createMockCommand('multi'),
+			subcommands: {
+				a: { action: actions.a },
+				b: { action: actions.b },
+				c: { action: actions.c },
+			},
+		});
+
+		const client = createMockClient();
+
+		await spark.execute(createMockInteraction('b'), client);
+
+		expect(actions.a).not.toHaveBeenCalled();
+		expect(actions.b).toHaveBeenCalledTimes(1);
+		expect(actions.c).not.toHaveBeenCalled();
+
+		await spark.execute(createMockInteraction('a'), client);
+
+		expect(actions.a).toHaveBeenCalledTimes(1);
+		expect(actions.b).toHaveBeenCalledTimes(1);
+		expect(actions.c).not.toHaveBeenCalled();
+	});
+
+	test('mixed subcommands and groups route independently', async () => {
+		const directList = mock(async () => {});
+		const groupedAdd = mock(async () => {});
+
+		const spark = defineCommandGroup({
+			command: createMockCommand('manage'),
+			subcommands: {
+				list: { action: directList },
+			},
+			groups: {
+				items: {
+					add: { action: groupedAdd },
+				},
+			},
+		});
+
+		const client = createMockClient();
+
+		await spark.execute(createMockInteraction('list'), client);
+		expect(directList).toHaveBeenCalled();
+		expect(groupedAdd).not.toHaveBeenCalled();
+
+		await spark.execute(createMockInteraction('add', 'items'), client);
+		expect(groupedAdd).toHaveBeenCalled();
+	});
+
+	test('async guards work correctly', async () => {
+		const asyncGuard = async (input: ChatInputCommandInteraction) => {
+			await new Promise((resolve) => setTimeout(resolve, 1));
+			return { ok: true as const, value: input };
+		};
+
+		const actionMock = mock(async () => {});
+
+		const spark = defineCommandGroup({
+			command: createMockCommand('manage'),
+			guards: [asyncGuard],
+			subcommands: {
+				list: { action: actionMock },
+			},
+		});
+
+		const client = createMockClient();
+		const interaction = createMockInteraction('list');
+
+		await spark.execute(interaction, client);
+
+		expect(actionMock).toHaveBeenCalled();
+	});
+});
