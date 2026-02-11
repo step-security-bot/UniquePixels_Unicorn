@@ -1,5 +1,6 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import type { UnicornClient } from '@/core/client';
+import { createMockClient } from '@/core/lib/test-helpers';
 import {
 	createGuard,
 	guardFail,
@@ -7,18 +8,6 @@ import {
 	runGuard,
 	runGuards,
 } from './index';
-
-// Create a minimal mock UnicornClient for testing
-function createMockClient(): UnicornClient {
-	return {
-		logger: {
-			debug: mock(() => {}),
-			info: mock(() => {}),
-			warn: mock(() => {}),
-			error: mock(() => {}),
-		},
-	} as unknown as UnicornClient;
-}
 
 describe('guardPass', () => {
 	test('creates successful guard result', () => {
@@ -95,7 +84,7 @@ describe('createGuard', () => {
 	test('creates an async guard function', async () => {
 		const asyncValidator = createGuard<string, string>(
 			async (input, _client) => {
-				await new Promise((resolve) => setTimeout(resolve, 10));
+				await Promise.resolve();
 				if (input.length < 3) {
 					return guardFail('Input too short');
 				}
@@ -150,7 +139,7 @@ describe('runGuard', () => {
 
 	test('runs async guard and returns promise', async () => {
 		const asyncGuard = createGuard<string, string>(async (s, _client) => {
-			await new Promise((resolve) => setTimeout(resolve, 5));
+			await Promise.resolve();
 			return s.length > 0 ? guardPass(s) : guardFail('Must not be empty');
 		});
 
@@ -269,12 +258,12 @@ describe('runGuards', () => {
 
 	test('handles async guards in sequence', async () => {
 		const asyncGuard1 = createGuard<number, number>(async (n, _client) => {
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			await Promise.resolve();
 			return guardPass(n + 1);
 		});
 
 		const asyncGuard2 = createGuard<number, number>(async (n, _client) => {
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			await Promise.resolve();
 			return guardPass(n * 2);
 		});
 
@@ -292,7 +281,7 @@ describe('runGuards', () => {
 		});
 
 		const asyncGuard = createGuard<number, number>(async (n, _client) => {
-			await new Promise((resolve) => setTimeout(resolve, 5));
+			await Promise.resolve();
 			return guardPass(n * 2);
 		});
 

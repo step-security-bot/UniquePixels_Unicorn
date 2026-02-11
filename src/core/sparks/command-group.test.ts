@@ -4,24 +4,11 @@ import type {
 	ChatInputCommandInteraction,
 	SlashCommandBuilder,
 } from 'discord.js';
-import { Collection } from 'discord.js';
-import type { UnicornClient } from '@/core/client';
+import { createMockClient } from '@/core/lib/test-helpers';
 import { hasAutocomplete } from './command';
 import { defineCommandGroup } from './command-group';
 
 // ─── Test Helpers ────────────────────────────────────────────────
-
-function createMockClient(): UnicornClient {
-	return {
-		commands: new Collection(),
-		logger: {
-			debug: mock(() => {}),
-			info: mock(() => {}),
-			warn: mock(() => {}),
-			error: mock(() => {}),
-		},
-	} as unknown as UnicornClient;
-}
 
 function createMockCommand(name: string) {
 	return { name } as unknown as SlashCommandBuilder;
@@ -907,7 +894,7 @@ describe('edge cases', () => {
 
 	test('async guards work correctly', async () => {
 		const asyncGuard = async (input: ChatInputCommandInteraction) => {
-			await new Promise((resolve) => setTimeout(resolve, 1));
+			await Promise.resolve();
 			return { ok: true as const, value: input };
 		};
 

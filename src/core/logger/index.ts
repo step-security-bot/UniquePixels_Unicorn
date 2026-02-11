@@ -19,6 +19,7 @@ interface PinoLogRecord {
 	[key: string]: unknown;
 }
 
+/** Maps Pino numeric log levels to Sentry severity levels. */
 export const PINO_TO_SENTRY_LEVEL: Record<
 	PinoLevelNumber,
 	Sentry.SeverityLevel
@@ -31,6 +32,7 @@ export const PINO_TO_SENTRY_LEVEL: Record<
 	60: 'fatal',
 };
 
+/** Maps Pino numeric log levels to their string names. */
 export const PINO_LEVEL_NAME: Record<PinoLevelNumber, PinoLevel> = {
 	10: 'trace',
 	20: 'debug',
@@ -40,11 +42,13 @@ export const PINO_LEVEL_NAME: Record<PinoLevelNumber, PinoLevel> = {
 	60: 'fatal',
 };
 
+/** Pino levels that should be captured as Sentry exceptions. */
 export const ERROR_LEVELS: Set<PinoLevel> = new Set<PinoLevel>([
 	'warn',
 	'error',
 	'fatal',
 ]);
+/** Pino levels that should be captured as Sentry messages. */
 export const LOG_LEVELS: Set<PinoLevel> = new Set<PinoLevel>([
 	'info',
 	'warn',
@@ -52,6 +56,7 @@ export const LOG_LEVELS: Set<PinoLevel> = new Set<PinoLevel>([
 	'fatal',
 ]);
 
+/** Minimal Sentry client interface for dependency injection in tests. */
 export interface SentryClient {
 	captureException: typeof Sentry.captureException;
 	captureMessage: typeof Sentry.captureMessage;
@@ -165,8 +170,6 @@ export function createLogger(): Logger {
 	// Prod: Async stream - Sentry calls are deferred via setImmediate
 	return pino({ level: 'info' }, createSentryStream());
 }
-
-export const logger: Logger = createLogger();
 
 /**
  * Registers Discord.js debug, warn, and error events to forward to the logger.

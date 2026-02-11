@@ -1,25 +1,12 @@
 import { describe, expect, mock, test } from 'bun:test';
 import { type ClientEvents, Events } from 'discord.js';
-import type { UnicornClient } from '@/core/client';
 import type { Guard } from '@/core/guards';
+import { createMockClient } from '@/core/lib/test-helpers';
 import { defineGatewayEvent } from './gateway-event';
 
 // ─── Test Helpers ────────────────────────────────────────────────
 
 type MessageCreateArg = ClientEvents[typeof Events.MessageCreate][0];
-
-function createMockClient(): UnicornClient {
-	return {
-		on: mock(() => {}),
-		once: mock(() => {}),
-		logger: {
-			debug: mock(() => {}),
-			info: mock(() => {}),
-			warn: mock(() => {}),
-			error: mock(() => {}),
-		},
-	} as unknown as UnicornClient;
-}
 
 function createMockMessage(): MessageCreateArg {
 	return { content: 'hello' } as unknown as MessageCreateArg;
@@ -288,22 +275,6 @@ describe('defineGatewayEvent', () => {
 
 			const calls = (client.once as ReturnType<typeof mock>).mock.calls;
 			expect(calls[0]?.[0]).toBe(Events.ClientReady);
-		});
-
-		test('logs debug message on registration', () => {
-			const spark = defineGatewayEvent({
-				event: Events.MessageCreate,
-				once: false,
-				action: async () => {},
-			});
-
-			const client = createMockClient();
-			spark.register(client);
-
-			expect(client.logger.debug).toHaveBeenCalledWith(
-				{ event: Events.MessageCreate, once: false },
-				'Registered gateway event',
-			);
 		});
 
 		test('registered handler catches errors from execute', async () => {

@@ -11,9 +11,16 @@ import { createGuard, type Guard, guardFail, guardPass } from '@/core/guards';
  *
  * @example
  * ```ts
- * class ModCommand extends CommandSpark {
- *   guards = [inCachedGuild, hasPermission(PermissionFlagsBits.ManageMessages)];
- * }
+ * import { PermissionFlagsBits } from 'discord.js';
+ * import { defineCommand } from '@/core/sparks/command';
+ * import { inCachedGuild } from '@/guards/built-in/in-cached-guild';
+ *
+ * export const modCommand = defineCommand({
+ *   command: builder,
+ *   guards: [inCachedGuild, hasPermission(PermissionFlagsBits.ManageMessages)],
+ *   action: async (interaction, client) => { // ...
+ *   },
+ * });
  * ```
  */
 export function hasPermission<T extends { member: GuildMember }>(

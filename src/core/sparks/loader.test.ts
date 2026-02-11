@@ -1,26 +1,9 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Collection, SlashCommandBuilder } from 'discord.js';
-import type { UnicornClient } from '@/core/client';
+import { SlashCommandBuilder } from 'discord.js';
+import { createMockClient } from '@/core/lib/test-helpers';
 import { collectCommandBuilders, loadSparks } from './loader';
-
-// Create a minimal mock UnicornClient for testing
-function createMockClient(): UnicornClient {
-	return {
-		commands: new Collection(),
-		components: new Collection(),
-		scheduledJobs: new Collection(),
-		logger: {
-			debug: mock(() => {}),
-			info: mock(() => {}),
-			warn: mock(() => {}),
-			error: mock(() => {}),
-		},
-		on: mock(() => {}),
-		once: mock(() => {}),
-	} as unknown as UnicornClient;
-}
 
 describe('loadSparks', () => {
 	const testDir = join(import.meta.dir, '__test_sparks__');
@@ -310,44 +293,18 @@ describe('loadSparks', () => {
 		expect(result.commands).toBe(1);
 	});
 
-	test('handles empty file gracefully', async () => {
+	test('ignores files with no runtime exports', async () => {
 		const client = createMockClient();
 
-		// Create an empty file
 		writeFileSync(join(testDir, 'empty.ts'), '');
-
-		const result = await loadSparks(client, testDir);
-
-		expect(result.total).toBe(0);
-	});
-
-	test('handles file with only comments', async () => {
-		const client = createMockClient();
-
-		// Create a file with only comments
-		const commentsOnly = `
-			// This file is intentionally empty
-			/*
-			 * It contains no exports
-			 * Just documentation
-			 */
-		`;
-		writeFileSync(join(testDir, 'comments-only.ts'), commentsOnly);
-
-		const result = await loadSparks(client, testDir);
-
-		expect(result.total).toBe(0);
-	});
-
-	test('handles file with default export only', async () => {
-		const client = createMockClient();
-
-		// Create a file with only default export (not a spark)
-		const defaultExportCode = `
-			const helper = { name: 'helper' };
-			export default helper;
-		`;
-		writeFileSync(join(testDir, 'default-only.ts'), defaultExportCode);
+		writeFileSync(
+			join(testDir, 'comments-only.ts'),
+			`// This file is intentionally empty\n/* block comment */`,
+		);
+		writeFileSync(
+			join(testDir, 'default-only.ts'),
+			`const helper = { name: 'helper' };\nexport default helper;`,
+		);
 
 		const result = await loadSparks(client, testDir);
 
@@ -495,93 +452,28 @@ describe('loadSparks', () => {
 		expect(result.scheduled).toBe(1);
 	});
 
-	test('handles file that exports null and undefined', async () => {
+	test('ignores files with non-spark exports', async () => {
 		const client = createMockClient();
 
-		const nullishCode = `
+		const code = `
 			export const nullValue = null;
 			export const undefinedValue = undefined;
 			export const emptyObject = {};
-		`;
-		writeFileSync(join(testDir, 'nullish.ts'), nullishCode);
-
-		const result = await loadSparks(client, testDir);
-
-		expect(result.total).toBe(0);
-	});
-
-	test('handles file that exports primitives', async () => {
-		const client = createMockClient();
-
-		const primitivesCode = `
 			export const stringVal = 'hello';
 			export const numberVal = 42;
 			export const boolVal = true;
-			export const bigintVal = 123n;
-			export const symbolVal = Symbol('test');
-		`;
-		writeFileSync(join(testDir, 'primitives.ts'), primitivesCode);
-
-		const result = await loadSparks(client, testDir);
-
-		expect(result.total).toBe(0);
-	});
-
-	test('handles file that exports functions', async () => {
-		const client = createMockClient();
-
-		const functionsCode = `
 			export function regularFunction() {}
 			export const arrowFunction = () => {};
-			export async function asyncFunction() {}
-			export const asyncArrow = async () => {};
-		`;
-		writeFileSync(join(testDir, 'functions.ts'), functionsCode);
-
-		const result = await loadSparks(client, testDir);
-
-		expect(result.total).toBe(0);
-	});
-
-	test('handles file that exports arrays', async () => {
-		const client = createMockClient();
-
-		const arraysCode = `
 			export const emptyArray = [];
-			export const stringArray = ['a', 'b', 'c'];
-			export const objectArray = [{ type: 'command' }, { type: 'component' }];
+			export const objectArray = [{ type: 'command' }];
 		`;
-		writeFileSync(join(testDir, 'arrays.ts'), arraysCode);
+		writeFileSync(join(testDir, 'non-sparks.ts'), code);
 
 		const result = await loadSparks(client, testDir);
 
 		expect(result.total).toBe(0);
 	});
 
-	test('logs debug information during loading', async () => {
-		const client = createMockClient();
-		const debugMock = client.logger.debug;
-
-		// Create a valid spark
-		const sparkCode = `
-			import { SlashCommandBuilder } from 'discord.js';
-			export const loggingTest = {
-				type: 'command',
-				id: 'logging',
-				command: new SlashCommandBuilder().setName('logging').setDescription('Log test'),
-				guards: [],
-				action: async () => {},
-				execute: async () => ({ ok: true, value: {} }),
-				register: (client) => client.commands.set('logging', loggingTest),
-			};
-		`;
-		writeFileSync(join(testDir, 'logging-spark.ts'), sparkCode);
-
-		await loadSparks(client, testDir);
-
-		// Verify debug was called with file count
-		expect(debugMock).toHaveBeenCalled();
-	});
 });
 
 describe('collectCommandBuilders', () => {

@@ -11,7 +11,9 @@ import type { BaseComponentSpark } from '@/core/sparks/component';
  * This interface augments the base Client with:
  * - logger: Pino logger instance for structured logging
  * - config: Parsed and validated configuration with type-safe ID access
- * - interactions: Collection of registered interaction sparks (commands, components)
+ * - commands: Collection of command sparks keyed by name
+ * - components: Collection of exact/prefix-match component sparks (O(1) lookup)
+ * - componentPatterns: Array of pattern-based component sparks (wildcard/regex)
  * - scheduledJobs: Collection of active cron jobs for scheduled sparks
  */
 export interface UnicornClient<T extends UnicornConfig = UnicornConfig>
@@ -43,7 +45,9 @@ export function isUnicornClient(client: Client): client is UnicornClient {
 		'logger' in client &&
 		'config' in client &&
 		'commands' in client &&
-		'componentPatterns' in client
+		'components' in client &&
+		'componentPatterns' in client &&
+		'scheduledJobs' in client
 	);
 }
 

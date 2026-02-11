@@ -19,9 +19,12 @@ export type ChannelTypedInteraction<
  *
  * @example
  * ```ts
- * class ThreadCommand extends CommandSpark {
- *   guards = [channelType(ChannelType.PublicThread, ChannelType.PrivateThread)];
- * }
+ * export const threadCommand = defineCommand({
+ *   command: builder,
+ *   guards: [channelType(ChannelType.PublicThread, ChannelType.PrivateThread)],
+ *   action: async (interaction, client) => { // ...
+ *   },
+ * });
  * ```
  */
 export function channelType<T extends Interaction, C extends ChannelType>(

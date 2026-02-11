@@ -3,7 +3,6 @@ import {
 	beforeEach,
 	describe,
 	expect,
-	mock,
 	test,
 } from 'bun:test';
 import {
@@ -12,10 +11,9 @@ import {
 	type GuildBasedChannel,
 	type GuildMember,
 	type Interaction,
-	type Message,
 	PermissionsBitField,
 } from 'discord.js';
-import type { UnicornClient } from '@/core/client';
+import { createMockClient, createMockMessage } from '@/core/lib/test-helpers';
 import {
 	_rateLimitTesting,
 	botHasPermission,
@@ -29,19 +27,7 @@ import {
 	rateLimit,
 } from './index';
 
-// Create a minimal mock UnicornClient for testing
-function createMockClient(): UnicornClient {
-	return {
-		logger: {
-			debug: mock(() => {}),
-			info: mock(() => {}),
-			warn: mock(() => {}),
-			error: mock(() => {}),
-		},
-	} as unknown as UnicornClient;
-}
-
-// Helper to create mock interaction
+// Helper to create mock interaction with guard-specific properties
 function createMockInteraction(options: {
 	inCachedGuild?: boolean;
 	userId?: string;
@@ -71,24 +57,6 @@ function createMockInteraction(options: {
 			type: chType,
 		},
 	} as unknown as Interaction;
-}
-
-// Helper to create mock message
-function createMockMessage(options: {
-	inGuild?: boolean;
-	isBot?: boolean;
-	authorId?: string;
-}) {
-	const { inGuild = true, isBot = false, authorId = '123456789012345678' } = options;
-
-	return {
-		inGuild: () => inGuild,
-		author: {
-			id: authorId,
-			bot: isBot,
-		},
-		guildId: inGuild ? '987654321098765432' : null,
-	} as unknown as Message;
 }
 
 describe('inCachedGuild', () => {
@@ -607,42 +575,42 @@ describe('rateLimit LRU eviction', () => {
 		_rateLimitTesting.resetConfig();
 	});
 
-	test('evicts oldest entries when store exceeds max capacity', async () => {
+	test('evicted users get a fresh request count', async () => {
 		const client = createMockClient();
-		// Set low threshold for testing
 		_rateLimitTesting.setMaxEntries(5);
 		_rateLimitTesting.setEvictionBatchSize(2);
 
-		const guard = rateLimit({ limit: 10, window: 60000 });
+		// limit: 2 so second request still passes, third would fail
+		const guard = rateLimit({ limit: 2, window: 60000 });
 
-		// Add 6 entries (exceeds max of 5)
+		// Add 6 entries (exceeds max of 5 → evicts oldest 3)
 		for (let i = 0; i < 6; i++) {
 			const interaction = createMockInteraction({ userId: `evict-user-${i}` });
 			await guard(interaction, client);
 		}
 
-		const store = _rateLimitTesting.getStore();
+		// Evicted user-0 should pass with a fresh count (count resets to 1)
+		const evictedRetry = createMockInteraction({ userId: 'evict-user-0' });
+		const evictedResult = await guard(evictedRetry, client);
+		expect(evictedResult.ok).toBe(true);
 
-		// Should have evicted oldest entries (excess + batch = 1 + 2 = 3 evicted)
-		// 6 entries - 3 evicted = 3 remaining
-		expect(store.size).toBe(3);
+		// Surviving user-5 already used 1 of 2 — second request still passes
+		const survivingRetry = createMockInteraction({ userId: 'evict-user-5' });
+		const survivingResult = await guard(survivingRetry, client);
+		expect(survivingResult.ok).toBe(true);
 
-		// Oldest entries should be gone
-		expect(store.has('evict-user-0')).toBe(false);
-		expect(store.has('evict-user-1')).toBe(false);
-		expect(store.has('evict-user-2')).toBe(false);
-
-		// Newest entries should remain
-		expect(store.has('evict-user-3')).toBe(true);
-		expect(store.has('evict-user-4')).toBe(true);
-		expect(store.has('evict-user-5')).toBe(true);
+		// Surviving user-5 now at 2/2 — third request should be rate limited
+		const survivingThird = createMockInteraction({ userId: 'evict-user-5' });
+		const thirdResult = await guard(survivingThird, client);
+		expect(thirdResult.ok).toBe(false);
 	});
 
 	test('does not evict when under capacity', async () => {
 		const client = createMockClient();
 		_rateLimitTesting.setMaxEntries(10);
 
-		const guard = rateLimit({ limit: 10, window: 60000 });
+		// limit: 1 so second request is rate limited if entry still exists
+		const guard = rateLimit({ limit: 1, window: 60000 });
 
 		// Add 5 entries (under max of 10)
 		for (let i = 0; i < 5; i++) {
@@ -650,43 +618,57 @@ describe('rateLimit LRU eviction', () => {
 			await guard(interaction, client);
 		}
 
-		const store = _rateLimitTesting.getStore();
-		expect(store.size).toBe(5);
+		// All users should still be tracked — second request fails for each
+		for (let i = 0; i < 5; i++) {
+			const retry = createMockInteraction({ userId: `no-evict-user-${i}` });
+			const result = await guard(retry, client);
+			expect(result.ok).toBe(false);
+		}
 	});
 
-	test('eviction respects LRU order - recently accessed entries are preserved', async () => {
+	test('recently accessed user survives eviction over older untouched user', async () => {
 		const client = createMockClient();
 		_rateLimitTesting.setMaxEntries(3);
-		_rateLimitTesting.setEvictionBatchSize(0); // Only evict exact excess
+		_rateLimitTesting.setEvictionBatchSize(1);
 
+		// limit: 10 so we can verify preserved entry by hitting it multiple times
 		const guard = rateLimit({ limit: 10, window: 60000 });
 
-		// Add initial entries: order is user0, user1, user2
-		const user0 = createMockInteraction({ userId: 'lru-user-0' });
-		const user1 = createMockInteraction({ userId: 'lru-user-1' });
-		const user2 = createMockInteraction({ userId: 'lru-user-2' });
+		// Add initial entries: insertion order is user0, user1, user2
+		await guard(createMockInteraction({ userId: 'lru-user-0' }), client);
+		await guard(createMockInteraction({ userId: 'lru-user-1' }), client);
+		await guard(createMockInteraction({ userId: 'lru-user-2' }), client);
 
-		await guard(user0, client);
-		await guard(user1, client);
-		await guard(user2, client);
+		// Touch user0 → LRU order becomes: user1, user2, user0
+		await guard(createMockInteraction({ userId: 'lru-user-0' }), client);
 
-		// Access user0 again to move it to end (most recently used)
-		// Order is now: user1, user2, user0
-		await guard(user0, client);
+		// Add user3 → triggers eviction of 1 entry (user1 is oldest)
+		await guard(createMockInteraction({ userId: 'lru-user-3' }), client);
 
-		// Add new entry to trigger eviction (4 entries, max 3, evict 1)
-		// user1 is oldest and should be evicted
-		const user3 = createMockInteraction({ userId: 'lru-user-3' });
-		await guard(user3, client);
+		// user1 was evicted → gets a fresh start (limit: 10, so passes easily)
+		const user1Retry = await guard(
+			createMockInteraction({ userId: 'lru-user-1' }),
+			client,
+		);
+		expect(user1Retry.ok).toBe(true);
 
-		const store = _rateLimitTesting.getStore();
-
-		// user1 should be evicted (was oldest after user0 was touched)
-		expect(store.has('lru-user-1')).toBe(false);
-
-		// user0, user2, user3 should remain
-		expect(store.has('lru-user-0')).toBe(true);
-		expect(store.has('lru-user-2')).toBe(true);
-		expect(store.has('lru-user-3')).toBe(true);
+		// user0 survived (was touched) → should have count=2 from earlier access
+		// Adding more requests proves it kept its state (count goes up, not reset)
+		// We can verify by checking user0 still has accumulated count
+		// With limit: 10, all pass, but the key point is user0 was NOT evicted
+		// Let's verify user0's entry was preserved by hitting it 8 more times (total 10)
+		for (let i = 0; i < 8; i++) {
+			const result = await guard(
+				createMockInteraction({ userId: 'lru-user-0' }),
+				client,
+			);
+			expect(result.ok).toBe(true);
+		}
+		// Now at limit — 11th request should fail (proves entry was preserved)
+		const user0Limited = await guard(
+			createMockInteraction({ userId: 'lru-user-0' }),
+			client,
+		);
+		expect(user0Limited.ok).toBe(false);
 	});
 });

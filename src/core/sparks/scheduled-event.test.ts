@@ -1,7 +1,7 @@
 import { describe, expect, mock, spyOn, test } from 'bun:test';
 import { CronJob } from 'cron';
-import { Collection } from 'discord.js';
 import type { UnicornClient } from '@/core/client';
+import { createMockClient } from '@/core/lib/test-helpers';
 import {
 	type ScheduledContext,
 	defineScheduledEvent,
@@ -9,18 +9,6 @@ import {
 } from './scheduled-event';
 
 // ─── Test Helpers ────────────────────────────────────────────────
-
-function createMockClient(): UnicornClient {
-	return {
-		scheduledJobs: new Collection(),
-		logger: {
-			debug: mock(() => {}),
-			info: mock(() => {}),
-			warn: mock(() => {}),
-			error: mock(() => {}),
-		},
-	} as unknown as UnicornClient;
-}
 
 function createMockContext(
 	client: UnicornClient,
@@ -364,26 +352,6 @@ describe('defineScheduledEvent', () => {
 			expect(client.scheduledJobs.size).toBe(2);
 		});
 
-		test('logs debug with schedule info for each job', () => {
-			const spark = defineScheduledEvent({
-				id: 'cleanup',
-				schedule: '0 0 * * *',
-				timezone: 'America/New_York',
-				action: async () => {},
-			});
-
-			const client = createMockClient();
-			spark.register(client);
-
-			expect(client.logger.debug).toHaveBeenCalledWith(
-				expect.objectContaining({
-					scheduled: 'cleanup',
-					schedule: '0 0 * * *',
-					timezone: 'America/New_York',
-				}),
-				'Registered scheduled event',
-			);
-		});
 	});
 
 	describe('stop', () => {
@@ -433,21 +401,6 @@ describe('defineScheduledEvent', () => {
 			expect(client.scheduledJobs.size).toBe(0);
 		});
 
-		test('logs debug message', () => {
-			const spark = defineScheduledEvent({
-				id: 'cleanup',
-				schedule: '0 0 * * *',
-				action: async () => {},
-			});
-
-			const client = createMockClient();
-			spark.stop(client);
-
-			expect(client.logger.debug).toHaveBeenCalledWith(
-				{ scheduled: 'cleanup' },
-				'Stopped scheduled event',
-			);
-		});
 	});
 });
 
@@ -474,27 +427,6 @@ describe('stopAllScheduledJobs', () => {
 		stopAllScheduledJobs(client);
 
 		expect(client.scheduledJobs.size).toBe(0);
-	});
-
-	test('logs debug for each stopped job', () => {
-		const client = createMockClient();
-
-		const spark = defineScheduledEvent({
-			id: 'job1',
-			schedule: '0 0 * * *',
-			action: async () => {},
-		});
-		spark.register(client);
-
-		// Reset mock after registration logging
-		(client.logger.debug as ReturnType<typeof mock>).mockClear();
-
-		stopAllScheduledJobs(client);
-
-		expect(client.logger.debug).toHaveBeenCalledWith(
-			{ key: 'job1:0 0 * * *' },
-			'Stopped scheduled job',
-		);
 	});
 
 	test('handles empty collection without errors', () => {

@@ -60,10 +60,8 @@ export function attempt<T>(fn: () => Awaitable<T>): Promise<Result<T, Error>> {
 						? JSON.stringify(err)
 						: String(err)
 				}`,
+				{ cause: err },
 			);
-
-			// Attach the original value for debugging
-			(error as Error & { cause?: unknown }).cause = err;
 
 			return { success: false, error };
 		});

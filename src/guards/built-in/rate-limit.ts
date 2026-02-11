@@ -109,21 +109,28 @@ const defaultRateLimitKeyFn = <T extends Interaction>(input: T): string =>
  *
  * @example
  * ```ts
- * class ExpensiveCommand extends CommandSpark {
- *   guards = [
- *     rateLimit({ limit: 5, window: 60_000 }), // 5 uses per minute per user
- *   ];
- * }
+ * // 5 uses per minute per user
+ * export const expensiveCommand = defineCommand({
+ *   command: builder,
+ *   guards: [rateLimit({ limit: 5, window: 60_000 })],
+ *   action: async (interaction, client) => { // ...
+ *   },
+ * });
  *
- * // Per-guild rate limit:
- * guards = [
- *   inCachedGuild,
- *   rateLimit({
- *     limit: 10,
- *     window: 60_000,
- *     keyFn: (i) => `${i.guildId}:${i.user.id}`,
- *   }),
- * ];
+ * // Per-guild rate limit
+ * export const guildCommand = defineCommand({
+ *   command: builder,
+ *   guards: [
+ *     inCachedGuild,
+ *     rateLimit({
+ *       limit: 10,
+ *       window: 60_000,
+ *       keyFn: (i) => `${i.guildId}:${i.user.id}`,
+ *     }),
+ *   ],
+ *   action: async (interaction, client) => { // ...
+ *   },
+ * });
  * ```
  */
 export function rateLimit<T extends Interaction>(options: {

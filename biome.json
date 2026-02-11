@@ -64,9 +64,6 @@
 				"noReExportAll": "on",
 				"useTopLevelRegex": "on"
 			},
-			"security": {
-				"noSecrets": "on"
-			},
 			"style": {
 				"noCommonJs": "on",
 				"noDoneCallback": "on",

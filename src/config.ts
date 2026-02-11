@@ -4,8 +4,7 @@ import type { UnicornConfig } from '@/core/configuration';
 // biome-ignore lint/nursery/useExplicitType: satisfies preserves literal types for type-safe ID access
 export const appConfig = {
 	discord: {
-		// biome-ignore lint/security/noSecrets: app ids are not a secret
-		appID: '1225958405542383747',
+		appID: '1225958405542383747', // Note: App IDs are not secrets.
 		apiToken: 'secret://apiKey',
 		intents: [GatewayIntentBits.Guilds],
 		enabledPartials: [Partials.Channel],
@@ -20,10 +19,7 @@ export const appConfig = {
 	healthCheckPort: 3000,
 	misc: {},
 	ids: {
-		role: {
-			// biome-ignore lint/security/noSecrets: these are fake Discord snowflake IDs for testing
-			test: ['12345678901234567', '23456789012345678'],
-		},
+		role: {},
 		channel: {},
 		emoji: {},
 	},

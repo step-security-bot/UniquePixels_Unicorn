@@ -10,9 +10,12 @@ import { createGuard, type Guard, guardFail, guardPass } from '@/core/guards';
  *
  * @example
  * ```ts
- * class OwnerCommand extends CommandSpark {
- *   guards = [isUser(['123456789012345678'])];
- * }
+ * export const ownerCommand = defineCommand({
+ *   command: builder,
+ *   guards: [isUser(['123456789012345678'])],
+ *   action: async (interaction, client) => { // ...
+ *   },
+ * });
  * ```
  */
 export function isUser<T extends Interaction>(

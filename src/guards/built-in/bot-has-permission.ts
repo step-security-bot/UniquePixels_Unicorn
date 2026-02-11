@@ -15,9 +15,16 @@ import { createGuard, type Guard, guardFail, guardPass } from '@/core/guards';
  *
  * @example
  * ```ts
- * class EmbedCommand extends CommandSpark {
- *   guards = [inCachedGuild, botHasPermission(PermissionFlagsBits.EmbedLinks)];
- * }
+ * import { PermissionFlagsBits } from 'discord.js';
+ * import { defineCommand } from '@/core/sparks/command';
+ * import { inCachedGuild } from '@/guards/built-in/in-cached-guild';
+ *
+ * export const embedCommand = defineCommand({
+ *   command: builder,
+ *   guards: [inCachedGuild, botHasPermission(PermissionFlagsBits.EmbedLinks)],
+ *   action: async (interaction, client) => { // ...
+ *   },
+ * });
  * ```
  */
 export function botHasPermission<

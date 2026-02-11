@@ -54,6 +54,13 @@ reviews:
         - Edge cases covered
         - No flaky patterns
 
+    - path: "**/.claude/**"
+      instructions: |
+        Configuration files for Claude. Ensure:
+        - No sensitive information
+        - Proper formatting
+        - Optimized for context window and token use
+
   # Tools to run
   tools:
     biome:

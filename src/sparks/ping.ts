@@ -1,9 +1,5 @@
-import {
-	type ChatInputCommandInteraction,
-	SlashCommandBuilder,
-} from 'discord.js';
-import type { UnicornClient } from '@/core/client';
-import { type CommandSpark, defineCommand } from '@/core/sparks';
+import { SlashCommandBuilder } from 'discord.js';
+import { defineCommand } from '@/core/sparks';
 
 /**
  * Sample /ping command that demonstrates basic command usage.
@@ -17,15 +13,12 @@ import { type CommandSpark, defineCommand } from '@/core/sparks';
  * User: /ping
  * Bot: Pong! Roundtrip: 42ms | WebSocket: 38ms
  */
-export const ping: CommandSpark = defineCommand({
+export const ping = defineCommand({
 	command: new SlashCommandBuilder()
 		.setName('ping')
 		.setDescription('Check bot latency and responsiveness'),
 
-	action: async (
-		interaction: ChatInputCommandInteraction,
-		client: UnicornClient,
-	) => {
+	action: async (interaction, client) => {
 		await interaction.reply({ content: 'Pinging...' });
 		const sent = await interaction.fetchReply();
 

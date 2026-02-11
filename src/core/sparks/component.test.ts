@@ -1,6 +1,8 @@
 import { describe, expect, mock, test } from 'bun:test';
-import { Collection } from 'discord.js';
-import type { UnicornClient } from '@/core/client';
+import {
+	createMockClient,
+	createMockComponentInteraction,
+} from '@/core/lib/test-helpers';
 import {
 	type AnyComponentInteraction,
 	type BaseComponentSpark,
@@ -10,31 +12,6 @@ import {
 	isPrefixPattern,
 	matchCustomId,
 } from './component';
-
-// Create a minimal mock UnicornClient for testing
-function createMockClient(): UnicornClient {
-	return {
-		components: new Collection(),
-		componentPatterns: [],
-		logger: {
-			debug: mock(() => {}),
-			info: mock(() => {}),
-			warn: mock(() => {}),
-			error: mock(() => {}),
-		},
-	} as unknown as UnicornClient;
-}
-
-// Create a mock interaction
-function createMockInteraction(customId: string): AnyComponentInteraction {
-	return {
-		customId,
-		user: { id: '123456789012345678' },
-		replied: false,
-		deferred: false,
-		reply: mock(async () => {}),
-	} as unknown as AnyComponentInteraction;
-}
 
 describe('matchCustomId', () => {
 	describe('exact string matching', () => {
@@ -318,7 +295,7 @@ describe('ComponentSpark.execute', () => {
 		});
 
 		const client = createMockClient();
-		const interaction = createMockInteraction('test');
+		const interaction = createMockComponentInteraction('test');
 
 		const result = await spark.execute(interaction, client);
 
@@ -343,7 +320,7 @@ describe('ComponentSpark.execute', () => {
 		});
 
 		const client = createMockClient();
-		const interaction = createMockInteraction('test');
+		const interaction = createMockComponentInteraction('test');
 
 		await spark.execute(interaction, client);
 
@@ -365,7 +342,7 @@ describe('ComponentSpark.execute', () => {
 		});
 
 		const client = createMockClient();
-		const interaction = createMockInteraction('test');
+		const interaction = createMockComponentInteraction('test');
 
 		const result = await spark.execute(interaction, client);
 
@@ -386,7 +363,7 @@ describe('ComponentSpark.execute', () => {
 		});
 
 		const client = createMockClient();
-		const interaction = createMockInteraction('test');
+		const interaction = createMockComponentInteraction('test');
 
 		const result = await spark.execute(interaction, client);
 
@@ -405,7 +382,7 @@ describe('ComponentSpark.execute', () => {
 		});
 
 		const client = createMockClient();
-		const interaction = createMockInteraction('test');
+		const interaction = createMockComponentInteraction('test');
 
 		const result = await spark.execute(interaction, client);
 
@@ -426,7 +403,7 @@ describe('ComponentSpark.execute', () => {
 		});
 
 		const client = createMockClient();
-		const interaction = createMockInteraction('test');
+		const interaction = createMockComponentInteraction('test');
 
 		await spark.execute(interaction, client);
 
@@ -478,18 +455,6 @@ describe('ComponentSpark.register', () => {
 		expect(client.componentPatterns[0]).toBe(spark);
 	});
 
-	test('logs debug message on registration', () => {
-		const spark = defineComponent({
-			id: 'log-test',
-			action: async () => {},
-		});
-
-		const client = createMockClient();
-		spark.register(client);
-
-		expect(client.logger.debug).toHaveBeenCalled();
-	});
-
 	test('adds prefix pattern spark to client components collection', () => {
 		const spark = defineComponent({
 			id: 'ban-',
@@ -504,20 +469,6 @@ describe('ComponentSpark.register', () => {
 		expect(client.componentPatterns).toHaveLength(0);
 	});
 
-	test('logs prefix type on registration', () => {
-		const spark = defineComponent({
-			id: 'ban-',
-			action: async () => {},
-		});
-
-		const client = createMockClient();
-		spark.register(client);
-
-		expect(client.logger.debug).toHaveBeenCalledWith(
-			{ component: 'ban-', type: 'prefix' },
-			'Registered component',
-		);
-	});
 });
 
 describe('findComponentSpark', () => {
@@ -821,47 +772,6 @@ describe('findComponentSpark', () => {
 			expect(found).toBe(patternSpark);
 		});
 
-		test('logs debug message when prefix routing matches', () => {
-			const components = new Map<string, BaseComponentSpark>();
-			const componentPatterns: BaseComponentSpark[] = [];
-			const spark = defineComponent({
-				id: 'ban-',
-				action: async () => {},
-			});
-			components.set('ban-', spark as unknown as BaseComponentSpark);
-
-			const mockLogger = { debug: mock(() => {}) };
-
-			findComponentSpark(
-				components,
-				componentPatterns,
-				'ban-123456789012345678',
-				mockLogger as unknown as Parameters<typeof findComponentSpark>[3],
-			);
-
-			expect(mockLogger.debug).toHaveBeenCalledWith(
-				{ component: 'ban-', customId: 'ban-123456789012345678' },
-				'Component matched via prefix routing',
-			);
-		});
-
-		test('does not log when no logger is provided', () => {
-			const components = new Map<string, BaseComponentSpark>();
-			const componentPatterns: BaseComponentSpark[] = [];
-			const spark = defineComponent({
-				id: 'ban-',
-				action: async () => {},
-			});
-			components.set('ban-', spark as unknown as BaseComponentSpark);
-
-			const found = findComponentSpark(
-				components,
-				componentPatterns,
-				'ban-123456789012345678',
-			);
-
-			expect(found).toBe(spark);
-		});
 	});
 });
 

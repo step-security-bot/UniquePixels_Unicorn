@@ -185,6 +185,7 @@ export const kick = defineComponent({
     await interaction.guild.members.kick(userId);
   },
 });
+```
 
 If a guard fails and the interaction hasn't been replied to, the failure reason is sent as an ephemeral reply.
 

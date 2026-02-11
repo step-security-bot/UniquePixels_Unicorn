@@ -6,7 +6,7 @@ const isDev: boolean = Bun.env.NODE_ENV === 'development';
 if (!isDev && Bun.env['sentryDSN']) {
 	Sentry.init({
 		dsn: Bun.env['sentryDSN'],
-		debug: true,
+		debug: false,
 		enableLogs: true,
 		sendDefaultPii: true,
 		environment: Bun.env.NODE_ENV ?? 'production',

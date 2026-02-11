@@ -2,8 +2,8 @@ import type { Message } from 'discord.js';
 import { createGuard, type Guard, guardFail, guardPass } from '@/core/guards';
 
 /**
- * Creates a guard that ensures a message is not from a bot.
- * For use with message-based sparks.
+ * Guard that ensures a message is not from a bot.
+ * For use with message-based gateway event sparks.
  */
 export const notBot: Guard<Message, Message> = createGuard<Message, Message>(
 	(message, _client) => {

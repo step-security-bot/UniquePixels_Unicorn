@@ -1,25 +1,11 @@
 import { describe, expect, mock, test } from 'bun:test';
-import { type Interaction, Collection, Events } from 'discord.js';
-import type { UnicornClient } from '@/core/client';
+import { type Interaction, Events } from 'discord.js';
 import type { BaseCommandSpark } from '@/core/sparks/command';
 import type { BaseComponentSpark } from '@/core/sparks/component';
+import { createMockBaseInteraction, createMockClient } from '@/core/lib/test-helpers';
 import { interactionCreate } from './interaction-create';
 
 // ─── Test Helpers ────────────────────────────────────────────────
-
-function createMockClient(): UnicornClient {
-	return {
-		commands: new Collection(),
-		components: new Collection(),
-		componentPatterns: [],
-		logger: {
-			debug: mock(() => {}),
-			info: mock(() => {}),
-			warn: mock(() => {}),
-			error: mock(() => {}),
-		},
-	} as unknown as UnicornClient;
-}
 
 function createMockCommandSpark(
 	overrides: Partial<BaseCommandSpark> = {},
@@ -49,30 +35,11 @@ function createMockComponentSpark(
 	} as unknown as BaseComponentSpark;
 }
 
-/**
- * Creates a base interaction mock. All type guards default to false.
- */
-function createBaseInteraction(
-	overrides: Record<string, unknown> = {},
-): Interaction {
-	return {
-		isChatInputCommand: mock(() => false),
-		isAutocomplete: mock(() => false),
-		isMessageComponent: mock(() => false),
-		isModalSubmit: mock(() => false),
-		user: { id: '123456789012345678' },
-		replied: false,
-		deferred: false,
-		reply: mock(async () => {}),
-		...overrides,
-	} as unknown as Interaction;
-}
-
 function createChatInputInteraction(
 	commandName: string,
 	overrides: Record<string, unknown> = {},
 ): Interaction {
-	return createBaseInteraction({
+	return createMockBaseInteraction({
 		isChatInputCommand: mock(() => true),
 		commandName,
 		...overrides,
@@ -82,7 +49,7 @@ function createChatInputInteraction(
 function createAutocompleteInteraction(
 	commandName: string,
 ): Interaction {
-	return createBaseInteraction({
+	return createMockBaseInteraction({
 		isAutocomplete: mock(() => true),
 		commandName,
 	});
@@ -92,7 +59,7 @@ function createComponentInteraction(
 	customId: string,
 	overrides: Record<string, unknown> = {},
 ): Interaction {
-	return createBaseInteraction({
+	return createMockBaseInteraction({
 		isMessageComponent: mock(() => true),
 		customId,
 		...overrides,
@@ -103,7 +70,7 @@ function createModalInteraction(
 	customId: string,
 	overrides: Record<string, unknown> = {},
 ): Interaction {
-	return createBaseInteraction({
+	return createMockBaseInteraction({
 		isModalSubmit: mock(() => true),
 		customId,
 		...overrides,
@@ -431,7 +398,7 @@ describe('interactionCreate', () => {
 		test('does not route non-matching interaction types', async () => {
 			const client = createMockClient();
 			// All type guards return false by default
-			const interaction = createBaseInteraction();
+			const interaction = createMockBaseInteraction();
 			await interactionCreate.execute(interaction, client);
 
 			// No commands or components should be invoked, no replies

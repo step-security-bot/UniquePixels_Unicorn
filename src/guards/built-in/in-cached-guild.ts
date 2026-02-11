@@ -24,10 +24,13 @@ export type GuildInteraction<T extends Interaction = Interaction> = T & {
  *
  * @example
  * ```ts
- * class MyCommand extends CommandSpark {
- *   guards = [inCachedGuild];
- *   // action receives GuildInteraction<ChatInputCommandInteraction>
- * }
+ * export const myCommand = defineCommand({
+ *   command: builder,
+ *   guards: [inCachedGuild],
+ *   action: async (interaction, client) => {
+ *     // interaction is narrowed to GuildInteraction — guild, member, guildId guaranteed
+ *   },
+ * });
  * ```
  */
 export const inCachedGuild: Guard<Interaction, GuildInteraction> = createGuard<

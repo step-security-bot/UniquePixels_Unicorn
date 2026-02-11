@@ -125,6 +125,14 @@ const wildcardPatternCache: Map<string, RegExp> = new Map<string, RegExp>();
 
 /**
  * Checks if a pattern is an exact match (not a regex, wildcard, or prefix).
+ *
+ * @example
+ * ```ts
+ * isExactPattern('confirm-action') // true
+ * isExactPattern('ban-')           // false (prefix)
+ * isExactPattern('ticket-*')       // false (wildcard)
+ * isExactPattern(/^action-\w+$/)   // false (regex)
+ * ```
  */
 export function isExactPattern(pattern: CustomIdPattern): pattern is string {
 	return (
@@ -137,6 +145,13 @@ export function isExactPattern(pattern: CustomIdPattern): pattern is string {
 /**
  * Checks if a pattern is a prefix match (trailing dash, no wildcards).
  * A prefix pattern like `'ban-'` matches any customId of the form `ban-<suffix>`.
+ *
+ * @example
+ * ```ts
+ * isPrefixPattern('ban-')           // true
+ * isPrefixPattern('confirm-action') // false (exact)
+ * isPrefixPattern('ticket-*')       // false (wildcard)
+ * ```
  */
 export function isPrefixPattern(pattern: CustomIdPattern): pattern is string {
 	return (

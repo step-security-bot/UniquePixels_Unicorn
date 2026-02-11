@@ -9,10 +9,11 @@ import {
 	collectCommandBuilders,
 	type LoadSparksResult,
 	loadSparks,
-	stopAllScheduledJobs,
 } from '@/core/sparks';
 import { cleanupRateLimits } from '@/guards/built-in';
 import { appConfig } from './config.ts';
+import { createHealthCheckHandler } from './health-check';
+import { createShutdownHandler } from './shutdown';
 
 /**
  * Main entry point for the Unicorn Discord bot.
@@ -99,71 +100,34 @@ const cleanupIntervalId: Timer = setInterval(() => {
 	}
 }, CLEANUP_INTERVAL_MS);
 
-// Set up graceful shutdown
-const SHUTDOWN_TIMEOUT_MS = 10_000;
-
 // Health check server reference (set later if enabled)
 let healthCheckServer: ReturnType<typeof Bun.serve> | undefined;
-
-const shutdown = (signal: string): never => {
-	logger.info({ signal }, 'Received shutdown signal');
-
-	// Force exit if graceful shutdown hangs
-	const forceExitTimeout = setTimeout(() => {
-		logger.error('Graceful shutdown timed out, forcing exit');
-		process.exit(1);
-	}, SHUTDOWN_TIMEOUT_MS);
-
-	// Ensure the timeout doesn't keep the process alive if shutdown completes
-	forceExitTimeout.unref();
-
-	// Clear cleanup interval
-	clearInterval(cleanupIntervalId);
-
-	// Stop health check server
-	if (healthCheckServer) {
-		healthCheckServer.stop();
-	}
-
-	// Stop scheduled jobs
-	stopAllScheduledJobs(client);
-
-	// Destroy Discord client
-	client.destroy();
-
-	logger.info('Shutdown complete');
-	process.exit(0);
-};
-
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 // Start health check server if port is configured
 if (config.healthCheckPort) {
 	healthCheckServer = Bun.serve({
 		port: config.healthCheckPort,
-		fetch(req: Request): Response {
-			const url = new URL(req.url);
-
-			// Liveness probe - is the process running?
-			if (url.pathname === '/health' || url.pathname === '/healthz') {
-				return new Response('OK', { status: 200 });
-			}
-
-			// Readiness probe - is the bot connected to Discord?
-			if (url.pathname === '/ready' || url.pathname === '/readyz') {
-				const isReady = client.isReady();
-				return new Response(isReady ? 'Ready' : 'Not Ready', {
-					status: isReady ? 200 : 503,
-				});
-			}
-
-			return new Response('Not Found', { status: 404 });
-		},
+		fetch: createHealthCheckHandler(client),
 	});
 
 	logger.info({ port: config.healthCheckPort }, 'Health check server started');
 }
+
+// Set up graceful shutdown (after health check server is initialized)
+const shutdown = createShutdownHandler({
+	client,
+	logger,
+	cleanupIntervalId,
+	...(healthCheckServer && { healthCheckServer }),
+	exit: process.exit,
+});
+
+process.on('SIGINT', () => {
+	shutdown('SIGINT').catch(() => process.exit(1));
+});
+process.on('SIGTERM', () => {
+	shutdown('SIGTERM').catch(() => process.exit(1));
+});
 
 // Login to Discord
 // THROWS on login failure - app cannot function without connection

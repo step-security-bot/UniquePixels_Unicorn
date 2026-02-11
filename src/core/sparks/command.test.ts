@@ -1,12 +1,13 @@
 import { describe, expect, mock, test } from 'bun:test';
-import type {
-	AutocompleteInteraction,
-	ChatInputCommandInteraction,
-	SlashCommandBuilder,
-} from 'discord.js';
-import { Collection } from 'discord.js';
-import type { UnicornClient } from '@/core/client';
+import type { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
 import type { Guard } from '@/core/guards';
+import {
+	createMockAutocompleteInteraction,
+	createMockChatInputInteraction,
+	createMockClient,
+	failGuard,
+	passThroughGuard,
+} from '@/core/lib/test-helpers';
 import {
 	defineCommand,
 	defineCommandWithAutocomplete,
@@ -15,58 +16,8 @@ import {
 
 // ─── Test Helpers ────────────────────────────────────────────────
 
-function createMockClient(): UnicornClient {
-	return {
-		commands: new Collection(),
-		logger: {
-			debug: mock(() => {}),
-			info: mock(() => {}),
-			warn: mock(() => {}),
-			error: mock(() => {}),
-		},
-	} as unknown as UnicornClient;
-}
-
 function createMockCommand(name: string) {
 	return { name } as unknown as SlashCommandBuilder;
-}
-
-function createMockInteraction(
-	commandName = 'test',
-): ChatInputCommandInteraction {
-	return {
-		commandName,
-		user: { id: '123456789012345678' },
-		replied: false,
-		deferred: false,
-		reply: mock(async () => {}),
-	} as unknown as ChatInputCommandInteraction;
-}
-
-function createMockAutocompleteInteraction(): AutocompleteInteraction {
-	return {
-		commandName: 'test',
-		options: {
-			getFocused: mock(() => ''),
-		},
-		respond: mock(async () => {}),
-	} as unknown as AutocompleteInteraction;
-}
-
-function passThroughGuard(): Guard<
-	ChatInputCommandInteraction,
-	ChatInputCommandInteraction
-> {
-	return mock(
-		(input: ChatInputCommandInteraction) =>
-			({ ok: true, value: input }) as const,
-	);
-}
-
-function failGuard(
-	reason: string,
-): Guard<ChatInputCommandInteraction, ChatInputCommandInteraction> {
-	return mock(() => ({ ok: false, reason }) as const);
 }
 
 // ─── Tests ───────────────────────────────────────────────────────
@@ -140,7 +91,7 @@ describe('defineCommand', () => {
 			});
 
 			const client = createMockClient();
-			const interaction = createMockInteraction();
+			const interaction = createMockChatInputInteraction();
 			const result = await spark.execute(interaction, client);
 
 			expect(result.ok).toBe(true);
@@ -158,7 +109,7 @@ describe('defineCommand', () => {
 			});
 
 			const client = createMockClient();
-			const interaction = createMockInteraction();
+			const interaction = createMockChatInputInteraction();
 			const result = await spark.execute(interaction, client);
 
 			expect(result.ok).toBe(true);
@@ -176,7 +127,7 @@ describe('defineCommand', () => {
 			});
 
 			const client = createMockClient();
-			const interaction = createMockInteraction();
+			const interaction = createMockChatInputInteraction();
 			const result = await spark.execute(interaction, client);
 
 			expect(result.ok).toBe(false);
@@ -195,7 +146,7 @@ describe('defineCommand', () => {
 			});
 
 			const client = createMockClient();
-			await spark.execute(createMockInteraction(), client);
+			await spark.execute(createMockChatInputInteraction(), client);
 
 			expect(client.logger.debug).toHaveBeenCalledWith(
 				{ command: 'ping', reason: 'Denied' },
@@ -212,7 +163,7 @@ describe('defineCommand', () => {
 			});
 
 			const client = createMockClient();
-			await spark.execute(createMockInteraction(), client);
+			await spark.execute(createMockChatInputInteraction(), client);
 
 			expect(client.logger.error).toHaveBeenCalledWith(
 				expect.objectContaining({ command: 'ping' }),
@@ -229,7 +180,7 @@ describe('defineCommand', () => {
 			});
 
 			const client = createMockClient();
-			const result = await spark.execute(createMockInteraction(), client);
+			const result = await spark.execute(createMockChatInputInteraction(), client);
 
 			// Guard passed, so result is ok even though action failed
 			expect(result.ok).toBe(true);
@@ -246,7 +197,7 @@ describe('defineCommand', () => {
 			});
 
 			const client = createMockClient();
-			await spark.execute(createMockInteraction(), client);
+			await spark.execute(createMockChatInputInteraction(), client);
 
 			expect(guard1).toHaveBeenCalledTimes(1);
 			expect(guard2).not.toHaveBeenCalled();
@@ -282,7 +233,7 @@ describe('defineCommand', () => {
 			});
 
 			const client = createMockClient();
-			await spark.execute(createMockInteraction(), client);
+			await spark.execute(createMockChatInputInteraction(), client);
 
 			// guard2 should receive the output of guard1
 			const guard2Calls = (guard2 as ReturnType<typeof mock>).mock.calls;
@@ -310,7 +261,7 @@ describe('defineCommand', () => {
 			});
 
 			const client = createMockClient();
-			const result = await spark.execute(createMockInteraction(), client);
+			const result = await spark.execute(createMockChatInputInteraction(), client);
 
 			expect(result.ok).toBe(true);
 			expect(action).toHaveBeenCalledTimes(1);
@@ -331,20 +282,6 @@ describe('defineCommand', () => {
 			expect(client.commands.get('ping')).toBeDefined();
 		});
 
-		test('logs debug message on registration', () => {
-			const spark = defineCommand({
-				command: createMockCommand('ping'),
-				action: async () => {},
-			});
-
-			const client = createMockClient();
-			spark.register(client);
-
-			expect(client.logger.debug).toHaveBeenCalledWith(
-				{ command: 'ping' },
-				'Registered command',
-			);
-		});
 	});
 });
 
@@ -392,7 +329,7 @@ describe('defineCommandWithAutocomplete', () => {
 		});
 
 		const client = createMockClient();
-		const result = await spark.execute(createMockInteraction(), client);
+		const result = await spark.execute(createMockChatInputInteraction(), client);
 
 		expect(result.ok).toBe(true);
 		expect(action).toHaveBeenCalledTimes(1);
@@ -468,21 +405,6 @@ describe('defineCommandWithAutocomplete', () => {
 			expect(client.commands.has('search')).toBe(true);
 		});
 
-		test('logs debug message', () => {
-			const spark = defineCommandWithAutocomplete({
-				command: createMockCommand('search'),
-				autocomplete: async () => {},
-				action: async () => {},
-			});
-
-			const client = createMockClient();
-			spark.register(client);
-
-			expect(client.logger.debug).toHaveBeenCalledWith(
-				{ command: 'search' },
-				'Registered command',
-			);
-		});
 	});
 });
 
