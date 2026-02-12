@@ -63,8 +63,17 @@ export interface SentryClient {
 }
 
 /**
- * Processes a log record and sends it to Sentry.
- * Extracted to enable async/deferred execution.
+ * Processes a Pino log record and sends it to Sentry.
+ *
+ * Determines the appropriate Sentry severity level and captures either:
+ * - Errors/warnings with err field as exceptions
+ * - Info/warn/error/fatal messages as Sentry messages
+ *
+ * Extracted to enable async/deferred execution via setImmediate, preventing
+ * Sentry API calls from blocking the main event loop.
+ *
+ * @param record - The Pino log record to process
+ * @param sentryClient - The Sentry client instance (injectable for testing)
  */
 function processSentryLog(
 	record: PinoLogRecord,

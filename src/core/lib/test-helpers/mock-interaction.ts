@@ -9,6 +9,28 @@ import type {
 import type { AnyComponentInteraction } from '@/core/sparks/component';
 import type { ReadyClient } from '@/core/sparks/gateway-event';
 
+/**
+ * Creates a mock ChatInputCommandInteraction for testing slash commands.
+ *
+ * Provides a minimal mock of Discord.js ChatInputCommandInteraction with
+ * configurable properties and mocked methods for reply, editReply, etc.
+ * The `options` object supports all Discord option getters (getString, getInteger, etc.).
+ *
+ * @param overrides - Optional overrides for interaction properties and methods
+ * @returns A mock ChatInputCommandInteraction instance
+ *
+ * @example
+ * ```ts
+ * const interaction = createMockChatInputInteraction({
+ *   commandName: 'ping',
+ *   userId: '123456789012345678',
+ *   options: { message: 'Hello world' },
+ * });
+ *
+ * expect(interaction.commandName).toBe('ping');
+ * expect(interaction.options.getString('message')).toBe('Hello world');
+ * ```
+ */
 export function createMockChatInputInteraction(
 	overrides: {
 		commandName?: string;
@@ -49,6 +71,24 @@ export function createMockChatInputInteraction(
 	} as unknown as ChatInputCommandInteraction;
 }
 
+/**
+ * Creates a mock AutocompleteInteraction for testing command autocomplete handlers.
+ *
+ * Provides a minimal mock with configurable focused value and respond method.
+ *
+ * @param overrides - Optional overrides for interaction properties
+ * @returns A mock AutocompleteInteraction instance
+ *
+ * @example
+ * ```ts
+ * const interaction = createMockAutocompleteInteraction({
+ *   commandName: 'search',
+ *   focusedValue: 'part',
+ * });
+ *
+ * expect(interaction.options.getFocused()).toBe('part');
+ * ```
+ */
 export function createMockAutocompleteInteraction(
 	overrides: {
 		commandName?: string;
@@ -66,6 +106,27 @@ export function createMockAutocompleteInteraction(
 	} as unknown as AutocompleteInteraction;
 }
 
+/**
+ * Creates a mock component interaction (button/select/modal) for testing ComponentSparks.
+ *
+ * Provides mocked methods for reply, update, deferUpdate, etc. Used to test
+ * button clicks, select menu choices, and modal submissions.
+ *
+ * @param customId - The custom ID of the component (required)
+ * @param overrides - Optional overrides for interaction properties
+ * @returns A mock component interaction instance
+ *
+ * @example
+ * ```ts
+ * const interaction = createMockComponentInteraction('delete-button', {
+ *   userId: '123456789012345678',
+ *   replied: false,
+ * });
+ *
+ * expect(interaction.customId).toBe('delete-button');
+ * expect(interaction.replied).toBe(false);
+ * ```
+ */
 export function createMockComponentInteraction(
 	customId: string,
 	overrides: {
@@ -87,6 +148,25 @@ export function createMockComponentInteraction(
 	} as unknown as AnyComponentInteraction;
 }
 
+/**
+ * Creates a generic mock Interaction with configurable type guards.
+ *
+ * Useful for testing interaction routing logic. Use `overrides` to set
+ * type guard methods (isChatInputCommand, isAutocomplete, etc.) to true.
+ *
+ * @param overrides - Optional overrides for any interaction property
+ * @returns A mock base Interaction instance
+ *
+ * @example
+ * ```ts
+ * const interaction = createMockBaseInteraction({
+ *   isChatInputCommand: mock(() => true),
+ *   commandName: 'test',
+ * });
+ *
+ * expect(interaction.isChatInputCommand()).toBe(true);
+ * ```
+ */
 export function createMockBaseInteraction(
 	overrides: Record<string, unknown> = {},
 ): Interaction {
@@ -103,6 +183,26 @@ export function createMockBaseInteraction(
 	} as unknown as Interaction;
 }
 
+/**
+ * Creates a mock Discord Message for testing message-based guards and handlers.
+ *
+ * Provides configurable guild status and author properties.
+ *
+ * @param overrides - Optional overrides for message properties
+ * @returns A mock Message instance
+ *
+ * @example
+ * ```ts
+ * const message = createMockMessage({
+ *   inGuild: true,
+ *   isBot: false,
+ *   authorId: '123456789012345678',
+ * });
+ *
+ * expect(message.inGuild()).toBe(true);
+ * expect(message.author.bot).toBe(false);
+ * ```
+ */
 export function createMockMessage(
 	overrides: { inGuild?: boolean; isBot?: boolean; authorId?: string } = {},
 ): Message {
@@ -117,6 +217,25 @@ export function createMockMessage(
 	} as unknown as Message;
 }
 
+/**
+ * Creates a mock ready Discord client for testing gateway event handlers.
+ *
+ * Provides user and guild information typically available after client ready event.
+ *
+ * @param overrides - Optional overrides for client properties
+ * @returns A mock ReadyClient instance
+ *
+ * @example
+ * ```ts
+ * const client = createMockReadyClient({
+ *   userTag: 'MyBot#1234',
+ *   guildCount: 5,
+ * });
+ *
+ * expect(client.user.tag).toBe('MyBot#1234');
+ * expect(client.guilds.cache.size).toBe(5);
+ * ```
+ */
 export function createMockReadyClient(
 	overrides: { userTag?: string; guildCount?: number } = {},
 ): ReadyClient {

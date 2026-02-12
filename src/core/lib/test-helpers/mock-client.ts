@@ -23,6 +23,27 @@ interface MockClientOverrides {
 	}>;
 }
 
+/**
+ * Creates a mock UnicornClient for testing.
+ *
+ * Returns a mock client with all required UnicornClient properties populated with
+ * mock functions and empty collections. Useful for unit testing sparks and guards
+ * without requiring a real Discord.js client.
+ *
+ * @param overrides - Optional overrides for specific client properties
+ * @returns A mock UnicornClient instance
+ *
+ * @example
+ * ```ts
+ * const client = createMockClient({
+ *   commands: new Collection([['ping', pingCommandSpark]]),
+ *   isReady: true,
+ * });
+ *
+ * expect(client.commands.get('ping')).toBe(pingCommandSpark);
+ * expect(client.isReady()).toBe(true);
+ * ```
+ */
 export function createMockClient(
 	overrides: MockClientOverrides = {},
 ): UnicornClient {

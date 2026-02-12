@@ -63,6 +63,12 @@ const SPARK_TYPES: Set<SparkType> = new Set<SparkType>([
 
 /**
  * Type guard to check if a value is a spark instance.
+ *
+ * Validates that the value has a recognized spark type and a register function.
+ * Used internally during spark loading to filter exports.
+ *
+ * @param value - The value to check
+ * @returns True if the value is a valid spark instance
  */
 function isSpark(value: unknown): value is AnySpark {
 	return (
@@ -78,7 +84,14 @@ function isSpark(value: unknown): value is AnySpark {
 
 /**
  * Recursively finds all files in a directory using async Bun.glob().
- * More performant than synchronous fs operations for large directories.
+ *
+ * Builds a glob pattern from the specified extensions and scans the directory,
+ * filtering out files matching exclude patterns. More performant than
+ * synchronous fs operations for large directories.
+ *
+ * @param dir - The directory to scan
+ * @param options - Loader options with extensions and exclude patterns
+ * @returns Array of absolute file paths
  */
 async function findFiles(
 	dir: string,
@@ -105,6 +118,15 @@ async function findFiles(
 
 /**
  * Gets a unique identifier for a spark (for logging purposes).
+ *
+ * Extracts the appropriate ID field based on spark type:
+ * - Commands: `id`
+ * - Components: `key`
+ * - Gateway events: `event` (stringified)
+ * - Scheduled events: `id`
+ *
+ * @param spark - The spark instance
+ * @returns A string identifier for logging
  */
 function getSparkId(spark: AnySpark): string {
 	if (spark.type === 'command') {
