@@ -23,6 +23,10 @@ import {
   notBot,
   messageInGuild,
   rateLimit,
+  hasSystemChannel,
+  hasPublicUpdatesChannel,
+  hasRulesChannel,
+  hasSafetyAlertsChannel,
 } from '@/guards';
 ```
 
@@ -252,6 +256,146 @@ Expired entries are cleaned up automatically via `cleanupRateLimits()`, which ru
 
 **Default failure message:** "Rate limited. Try again in N seconds."
 
+### Special Channel Guards
+
+The special channel guards check if Discord's special guild channels are configured and whether the bot has permission to send messages in them. These guards work with **any input that has a `guild` property**, including interactions (after `inCachedGuild`), gateway events with `GuildMember` objects, `Message` objects in guilds, and `Guild` objects directly.
+
+#### `hasSystemChannel`
+
+Ensures the guild has a system channel configured and the bot can send messages in it. The system channel is used for welcome messages, boost notifications, and other system events.
+
+```ts
+import { SlashCommandBuilder } from 'discord.js';
+import { defineCommand } from '@/core/sparks';
+import { hasSystemChannel, inCachedGuild } from '@/guards';
+
+export const announce = defineCommand({
+  command: new SlashCommandBuilder()
+    .setName('announce')
+    .setDescription('Post an announcement to the system channel'),
+  guards: [inCachedGuild, hasSystemChannel],
+  action: async (interaction, client) => {
+    // interaction.guild.systemChannel is guaranteed to exist
+    await interaction.guild.systemChannel.send('Important announcement!');
+    await interaction.reply({ content: 'Announcement posted!', ephemeral: true });
+  },
+});
+```
+
+Works with gateway events:
+
+```ts
+import { defineGatewayEvent } from '@/core/sparks';
+import { hasSystemChannel } from '@/guards';
+
+export const memberLeave = defineGatewayEvent({
+  type: 'guildMemberRemove',
+  guards: [hasSystemChannel],
+  action: async (member, client) => {
+    // member.guild.systemChannel is guaranteed to exist
+    await member.guild.systemChannel.send(`${member.user.tag} has left the server.`);
+  },
+});
+```
+
+**Failure messages:**
+
+- "This server does not have a system channel configured."
+- "I don't have permission to send messages in the system channel."
+
+#### `hasPublicUpdatesChannel`
+
+Ensures the guild has a public updates channel configured and the bot can send messages in it. This channel is used for community server announcements and updates.
+
+```ts
+import { SlashCommandBuilder } from 'discord.js';
+import { defineCommand } from '@/core/sparks';
+import { hasPublicUpdatesChannel, inCachedGuild } from '@/guards';
+
+export const communityUpdate = defineCommand({
+  command: new SlashCommandBuilder()
+    .setName('community-update')
+    .setDescription('Post to the public updates channel'),
+  guards: [inCachedGuild, hasPublicUpdatesChannel],
+  action: async (interaction, client) => {
+    await interaction.guild.publicUpdatesChannel.send('New community update!');
+    await interaction.reply({ content: 'Update posted!', ephemeral: true });
+  },
+});
+```
+
+Works with gateway events:
+
+```ts
+import { defineGatewayEvent } from '@/core/sparks';
+import { hasPublicUpdatesChannel } from '@/guards';
+
+export const memberWelcome = defineGatewayEvent({
+  type: 'guildMemberAdd',
+  guards: [hasPublicUpdatesChannel],
+  action: async (member, client) => {
+    await member.guild.publicUpdatesChannel.send(`Welcome to the server, ${member}! 🎉`);
+  },
+});
+```
+
+**Failure messages:**
+
+- "This server does not have a public updates channel configured."
+- "I don't have permission to send messages in the public updates channel."
+
+#### `hasRulesChannel`
+
+Ensures the guild has a rules channel configured and the bot can send messages in it. This channel displays server rules to members.
+
+```ts
+import { SlashCommandBuilder } from 'discord.js';
+import { defineCommand } from '@/core/sparks';
+import { hasRulesChannel, inCachedGuild } from '@/guards';
+
+export const updateRules = defineCommand({
+  command: new SlashCommandBuilder()
+    .setName('update-rules')
+    .setDescription('Post updated rules'),
+  guards: [inCachedGuild, hasRulesChannel],
+  action: async (interaction, client) => {
+    await interaction.guild.rulesChannel.send('📜 Rules have been updated!');
+    await interaction.reply({ content: 'Rules updated!', ephemeral: true });
+  },
+});
+```
+
+**Failure messages:**
+
+- "This server does not have a rules channel configured."
+- "I don't have permission to send messages in the rules channel."
+
+#### `hasSafetyAlertsChannel`
+
+Ensures the guild has a safety alerts channel configured and the bot can send messages in it. This channel is used for Discord's safety and moderation alerts.
+
+```ts
+import { SlashCommandBuilder } from 'discord.js';
+import { defineCommand } from '@/core/sparks';
+import { hasSafetyAlertsChannel, inCachedGuild } from '@/guards';
+
+export const safetyAlert = defineCommand({
+  command: new SlashCommandBuilder()
+    .setName('safety-alert')
+    .setDescription('Post a safety alert'),
+  guards: [inCachedGuild, hasSafetyAlertsChannel],
+  action: async (interaction, client) => {
+    await interaction.guild.safetyAlertsChannel.send('⚠️ Safety alert posted.');
+    await interaction.reply({ content: 'Alert sent!', ephemeral: true });
+  },
+});
+```
+
+**Failure messages:**
+
+- "This server does not have a safety alerts channel configured."
+- "I don't have permission to send messages in the safety alerts channel."
+
 ## Guard Composition
 
 Guards execute sequentially. Each guard receives the output of the previous guard as its input. This means guards can progressively narrow the type:
@@ -463,3 +607,7 @@ Interaction arrives
 | `notBot` | `Message` | `Message` | Filters bot messages |
 | `messageInGuild` | `Message` | `Message<true>` | Ensures message is in a guild |
 | `rateLimit(opts)` | `Interaction` | Same | Rate limits by key |
+| `hasSystemChannel` | `{ guild: Guild }` | Same + narrowed channel | Ensures system channel exists and bot can post |
+| `hasPublicUpdatesChannel` | `{ guild: Guild }` | Same + narrowed channel | Ensures public updates channel exists and bot can post |
+| `hasRulesChannel` | `{ guild: Guild }` | Same + narrowed channel | Ensures rules channel exists and bot can post |
+| `hasSafetyAlertsChannel` | `{ guild: Guild }` | Same + narrowed channel | Ensures safety alerts channel exists and bot can post |

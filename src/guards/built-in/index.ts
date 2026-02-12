@@ -11,3 +11,9 @@ export {
 	cleanupRateLimits,
 	rateLimit,
 } from './rate-limit';
+export {
+	hasPublicUpdatesChannel,
+	hasRulesChannel,
+	hasSafetyAlertsChannel,
+	hasSystemChannel,
+} from './special-channels';
