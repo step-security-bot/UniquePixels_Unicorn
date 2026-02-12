@@ -37,7 +37,8 @@ export interface CommandOptions<
 	/** The slash command builder */
 	command: CommandBuilder;
 	/** Guards to run before the action (optional, defaults to []) */
-	guards?: readonly Guard<ChatInputCommandInteraction, TGuarded>[];
+	// biome-ignore lint/suspicious/noExplicitAny: Guard chains have heterogeneous input/output types; type safety is enforced by runGuards at runtime
+	guards?: readonly Guard<any, any>[];
 	/** The action to run when the command is invoked */
 	action: CommandAction<TGuarded>;
 }
@@ -93,7 +94,8 @@ export interface CommandSpark<
 	readonly type: 'command';
 	readonly id: string;
 	readonly command: CommandBuilder;
-	readonly guards: readonly Guard<ChatInputCommandInteraction, TGuarded>[];
+	// biome-ignore lint/suspicious/noExplicitAny: Guard chains have heterogeneous input/output types; type safety is enforced by runGuards at runtime
+	readonly guards: readonly Guard<any, any>[];
 	readonly action: CommandAction<TGuarded>;
 	readonly autocomplete?: (
 		interaction: AutocompleteInteraction,

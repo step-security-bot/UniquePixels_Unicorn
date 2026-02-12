@@ -23,7 +23,8 @@ export interface SubcommandHandler<
 	TGuarded extends ChatInputCommandInteraction = ChatInputCommandInteraction,
 > {
 	/** Additional guards specific to this subcommand (run after top-level guards) */
-	guards?: readonly Guard<TGuarded, TGuarded>[];
+	// biome-ignore lint/suspicious/noExplicitAny: Guard chains have heterogeneous input/output types; type safety is enforced by runGuards at runtime
+	guards?: readonly Guard<any, any>[];
 	/** The action to execute when this subcommand is invoked */
 	action: CommandAction<TGuarded>;
 	/** Optional autocomplete handler for this subcommand */
@@ -42,7 +43,8 @@ export interface CommandGroupOptions<
 	/** The slash command builder (should include subcommands and/or groups) */
 	command: CommandBuilder;
 	/** Top-level guards shared by all subcommands (optional, defaults to []) */
-	guards?: readonly Guard<ChatInputCommandInteraction, TGuarded>[];
+	// biome-ignore lint/suspicious/noExplicitAny: Guard chains have heterogeneous input/output types; type safety is enforced by runGuards at runtime
+	guards?: readonly Guard<any, any>[];
 	/** Direct subcommands: name → handler */
 	subcommands?: Record<string, SubcommandHandler<TGuarded>>;
 	/** Subcommand groups: group name → subcommand name → handler */
