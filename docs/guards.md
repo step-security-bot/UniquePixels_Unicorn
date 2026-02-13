@@ -471,6 +471,46 @@ inCachedGuild (top-level)
 
 If any guard in the chain fails, the action never runs.
 
+## Receiving Narrowed Types in Actions
+
+Guards narrow types at runtime, but TypeScript needs you to declare the expected narrowed type via a generic parameter. All spark definition functions (`defineCommand`, `defineCommandGroup`) and `SubcommandHandler` accept a `TGuarded` generic that defaults to `ChatInputCommandInteraction`. Without it, `action` receives the base type — so `interaction.guild` stays nullable even if `inCachedGuild` is in your guard chain.
+
+Pass the narrowed type explicitly to get type safety:
+
+```ts
+import { type ChatInputCommandInteraction, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { defineCommand } from '@/core/sparks';
+import { type GuildInteraction, hasPermission, inCachedGuild } from '@/guards';
+
+export const kick = defineCommand<GuildInteraction<ChatInputCommandInteraction>>({
+  command: new SlashCommandBuilder()
+    .setName('kick')
+    .setDescription('Kick a member'),
+  guards: [inCachedGuild, hasPermission(PermissionFlagsBits.KickMembers)],
+  action: async (interaction, client) => {
+    // interaction.guild, interaction.member, etc. are all non-null
+    await interaction.guild.members.kick(interaction.options.getUser('target', true));
+  },
+});
+```
+
+The same applies to `SubcommandHandler` when defining subcommands for `defineCommandGroup`:
+
+```ts
+import type { ChatInputCommandInteraction } from 'discord.js';
+import type { SubcommandHandler } from '@/core/sparks';
+import { type GuildInteraction, inCachedGuild } from '@/guards';
+
+const mySubcommand: SubcommandHandler<GuildInteraction<ChatInputCommandInteraction>> = {
+  guards: [inCachedGuild],
+  action: async (interaction, client) => {
+    // interaction.guild guaranteed non-null
+  },
+};
+```
+
+> **Important:** The generic is a type-level assertion — TypeScript does not verify that your guards actually produce the declared narrowing. If you pass `GuildInteraction<ChatInputCommandInteraction>` but omit the `inCachedGuild` guard, TypeScript won't complain, but `interaction.guild` could be `null` at runtime. Always keep your generic in sync with your guard chain.
+
 ## Creating Custom Guards
 
 Custom guards are built using `createGuard`, `guardPass`, and `guardFail` from `@/guards`.
