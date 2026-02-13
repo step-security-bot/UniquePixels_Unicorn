@@ -14,6 +14,18 @@ export interface ShutdownDeps {
 	clearTimeout?: typeof globalThis.clearTimeout;
 }
 
+/** Runs a cleanup step, logging a warning on failure without throwing. */
+async function safeCleanup(
+	logger: Logger,
+	message: string,
+	fn: () => void | Promise<void>,
+): Promise<void> {
+	const result = await attempt(fn);
+	if (isError(result)) {
+		logger.warn({ err: result.error }, message);
+	}
+}
+
 /**
  * Creates a shutdown handler that performs graceful cleanup.
  * Extracted for testability without needing to send real signals.
@@ -30,17 +42,15 @@ export function createShutdownHandler(
 		timeoutMs = 10_000,
 	} = deps;
 
-	let forceExitTimeout: ReturnType<typeof globalThis.setTimeout> | undefined;
+	const setTimeoutFn = deps.setTimeout ?? globalThis.setTimeout;
+	const clearIntervalFn = deps.clearInterval ?? globalThis.clearInterval;
+	const clearTimeoutFn = deps.clearTimeout ?? globalThis.clearTimeout;
 
 	return async (signal: string): Promise<void> => {
 		logger.info({ signal }, 'Received shutdown signal');
 
 		// Force exit if graceful shutdown hangs
-		const setTimeoutFn = deps.setTimeout ?? globalThis.setTimeout;
-		const clearIntervalFn = deps.clearInterval ?? globalThis.clearInterval;
-		const clearTimeoutFn = deps.clearTimeout ?? globalThis.clearTimeout;
-
-		forceExitTimeout = setTimeoutFn(() => {
+		const forceExitTimeout = setTimeoutFn(() => {
 			logger.error('Graceful shutdown timed out, forcing exit');
 			exit(1);
 		}, timeoutMs);
@@ -52,46 +62,23 @@ export function createShutdownHandler(
 		}
 
 		// Each step is wrapped individually so one failure doesn't skip the rest
-		const clearResult = await attempt(() => clearIntervalFn(cleanupIntervalId));
-		if (isError(clearResult)) {
-			logger.warn(
-				{ err: clearResult.error },
-				'Failed to clear cleanup interval',
+		await safeCleanup(logger, 'Failed to clear cleanup interval', () =>
+			clearIntervalFn(cleanupIntervalId),
+		);
+		if (healthCheckServer) {
+			await safeCleanup(logger, 'Failed to stop health check server', () =>
+				healthCheckServer.stop(),
 			);
 		}
-
-		const healthResult = await attempt(() => {
-			if (healthCheckServer) {
-				healthCheckServer.stop();
-			}
-		});
-		if (isError(healthResult)) {
-			logger.warn(
-				{ err: healthResult.error },
-				'Failed to stop health check server',
-			);
-		}
-
-		const jobsResult = await attempt(() => stopAllScheduledJobs(client));
-		if (isError(jobsResult)) {
-			logger.warn({ err: jobsResult.error }, 'Failed to stop scheduled jobs');
-		}
-
-		const destroyResult = await attempt(() => client.destroy());
-		if (isError(destroyResult)) {
-			logger.warn(
-				{ err: destroyResult.error },
-				'Failed to destroy Discord client',
-			);
-		}
+		await safeCleanup(logger, 'Failed to stop scheduled jobs', () =>
+			stopAllScheduledJobs(client),
+		);
+		await safeCleanup(logger, 'Failed to destroy Discord client', () =>
+			client.destroy(),
+		);
 
 		logger.info('Shutdown complete');
-
-		// Clear the force exit timeout before exiting successfully
-		if (forceExitTimeout !== undefined) {
-			clearTimeoutFn(forceExitTimeout);
-		}
-
+		clearTimeoutFn(forceExitTimeout);
 		exit(0);
 	};
 }
