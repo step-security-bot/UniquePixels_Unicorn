@@ -6,6 +6,8 @@ Unicorn is a Discord bot framework built on Discord.js and TypeScript, designed 
 
 **Dependencies:** `discord.js` v14, `zod` v4, `pino`, `cron`, `@sentry/bun`
 
+**Zod v4:** This project uses Zod 4. Use Zod 4 APIs — e.g. `z.url()`, `z.email()`, `z.uuid()` as standalone schemas instead of deprecated `z.string().url()` / `.email()` / `.uuid()` chains. Reference: <https://zod.dev/llms.txt> — fetch when unsure about Zod 4 APIs.
+
 ## Bun Runtime
 
 - Use `bun` / `bun test` / `bun install` / `bun run <script>` — never node/npm/yarn/jest/vitest
@@ -44,6 +46,7 @@ src/
 │   │   └── index.ts            # Barrel export
 │   └── lib/
 │       ├── attempt/            # Result type, attempt(), isError, unwrap, etc.
+│       ├── csv/                # CSV parser with Zod schema validation
 │       └── test-helpers/       # Mock client, interactions, guards for tests
 ├── guards/
 │   ├── index.ts                # Re-exports core + built-in guards
@@ -86,7 +89,7 @@ Exact/prefix IDs use `client.components` (O(1)). Wildcard/regex use `client.comp
 
 ### Error Handling
 
-**Startup errors** throw and terminate. **Runtime errors** are logged but don't terminate. Use `attempt()` from `@/core/lib/attempt` for `Result<T, Error>` wrapper (includes `isError()`, `unwrap()`, helpers).
+**Startup errors** throw and terminate. **Runtime errors** are logged but don't terminate. Use `attempt()` from `@/core/lib/attempt` for `Result<T, Error>` wrapper (includes `isError()`, `unwrap()`, helpers). All asynchronous calls and anything that may fail should be wrapped in `attempt()` to ensure errors are properly captured and handled via the Result type rather than throwing uncaught exceptions.
 
 ### Configuration
 
@@ -102,6 +105,11 @@ Type-safe Zod schemas. `secret://KEY` → `Bun.env.KEY`. IDs are typed `Snowflak
 
 Biome with strict rules: **kebab-case** filenames, **no barrel files** (except exempted core), **no `console`** (use `client.logger`), **no `process.env`** (use config/`Bun.env`), **no floating promises**, single quotes, organized imports
 
+## Documentation
+
+- All exported and internal functions, classes, and types must have JSDoc docstrings. Keep them concise (one line where possible).
+- When adding or modifying a library module, update both inline JSDoc and the corresponding file in `docs/`. Docs should be clear and concise — illustrate how to use the API without business logic in examples.
+
 ## Testing
 
 Use Bun's test runner. Coverage threshold: 90%.
@@ -112,3 +120,5 @@ import { createMockClient, createMockChatInputInteraction } from '@/core/lib/tes
 ```
 
 **Test helpers** (`@/core/lib/test-helpers`): `createMockClient()`, `createMockChatInputInteraction()`, `createMockAutocompleteInteraction()`, `createMockComponentInteraction()`, `createMockBaseInteraction()`, `createMockMessage()`, `createMockReadyClient()`, `passThroughGuard()`, `failGuard()`
+
+**Test code quality:** Extract shared setup, assertions, and mock construction into helper functions to minimize duplication. Tests should be DRY — if the same pattern appears in multiple tests, factor it into a reusable helper at the top of the test file.

@@ -12,7 +12,6 @@ import type { UnicornConfig } from '@/core/configuration';
  * The config uses `secret://` prefix for sensitive values like the API token,
  * which are resolved from environment variables during parsing.
  */
-// biome-ignore lint/nursery/useExplicitType: satisfies preserves literal types for type-safe ID access
 export const appConfig = {
 	discord: {
 		appID: '1225958405542383747', // Note: App IDs are not secrets.

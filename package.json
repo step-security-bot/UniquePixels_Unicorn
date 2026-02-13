@@ -15,7 +15,7 @@
 		"lint": "bun lint:format && bun lint:code; bun lint:tsc;",
 		"lint:format": "biome format --write",
 		"lint:ci": "biome ci --reporter=github --diagnostic-level=warn",
-		"lint:code": "biome check --diagnostic-level=warn",
+		"lint:code": "biome check",
 		"lint:tsc": "tsc --noEmit --skipLibCheck"
 	},
 	"devDependencies": {
@@ -31,6 +31,7 @@
 	"dependencies": {
 		"@sentry/bun": "^10.38.0",
 		"cron": "^4.4.0",
+		"csv-parse": "^6.1.0",
 		"discord.js": "^14.25.1",
 		"pino": "^10.3.1",
 		"zod": "^4.3.6"
