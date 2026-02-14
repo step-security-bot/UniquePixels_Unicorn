@@ -2,26 +2,17 @@
 # https://docs.coderabbit.ai/guides/configure-coderabbit
 
 language: en-US
-
+early_access: true
 reviews:
-  # Enable automatic reviews on PRs
-  auto_review:
-    enabled: true
-    drafts: false
-    base_branches:
-      - main
-
-  # Review profile - assertive gives more detailed feedback
   profile: assertive
-
-  # Request changes vs just commenting
   request_changes_workflow: true
-
-  # High-level summary at the top of reviews
-  high_level_summary: true
-
-  # Generate poem (fun addition, disable if you prefer)
+  review_details: true
+  fail_commit_status: true
+  suggested_labels: false
   poem: false
+  pre_merge_checks:
+    docstrings:
+      mode: error
 
   # Review hints to focus on
   path_instructions:
@@ -61,15 +52,10 @@ reviews:
         - Proper formatting
         - Optimized for context window and token use
 
-  # Tools to run
-  tools:
-    biome:
-      enabled: true
-    shellcheck:
-      enabled: true
-    markdownlint:
-      enabled: true
-
-chat:
-  # Allow @coderabbitai mentions in PR comments
-  auto_reply: true
+issue_enrichment:
+  auto_enrich:
+    enabled: true
+  planning:
+    auto_planning:
+      labels:
+        - '!no-plan'
