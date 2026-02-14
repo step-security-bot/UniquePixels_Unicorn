@@ -6,6 +6,32 @@ import type { BaseCommandSpark } from '@/core/sparks/command';
 import type { BaseComponentSpark } from '@/core/sparks/component';
 
 /**
+ * Registry interface for declaring the app's configuration type.
+ *
+ * Override this via module augmentation in your app to get type-safe config
+ * access (e.g. `client.config.ids.role.admin`) across all sparks and guards:
+ *
+ * ```ts
+ * // src/client.d.ts
+ * import type { appConfig } from './config.ts';
+ *
+ * declare module '@/core/client' {
+ *   interface UnicornClientRegistry {
+ *     config: typeof appConfig;
+ *   }
+ * }
+ * ```
+ */
+// biome-ignore lint/suspicious/noEmptyInterface: Designed to be extended via module augmentation
+export interface UnicornClientRegistry {}
+
+/** Merges the registry with the base config type so a fallback always exists. */
+type RegistryWithFallback = UnicornClientRegistry & { config: UnicornConfig };
+
+/** Resolves the registered config type, falling back to the base UnicornConfig. */
+type RegisteredConfig = RegistryWithFallback['config'];
+
+/**
  * Extended Discord.js Client with Unicorn-specific properties.
  *
  * This interface augments the base Client with:
@@ -16,13 +42,12 @@ import type { BaseComponentSpark } from '@/core/sparks/component';
  * - componentPatterns: Array of pattern-based component sparks (wildcard/regex)
  * - scheduledJobs: Collection of active cron jobs for scheduled sparks
  */
-export interface UnicornClient<T extends UnicornConfig = UnicornConfig>
-	extends Client {
+export interface UnicornClient extends Client {
 	/** Pino logger instance with Sentry integration in production */
 	logger: Logger;
 
 	/** Parsed configuration with type-safe access to IDs */
-	config: ParsedConfig<T>;
+	config: ParsedConfig<RegisteredConfig>;
 
 	/** Collection of command sparks keyed by command name */
 	commands: Collection<string, BaseCommandSpark>;
@@ -55,12 +80,12 @@ export function isUnicornClient(client: Client): client is UnicornClient {
  * Creates the Unicorn-specific collections and attaches them to the client.
  * This should be called during client initialization before loading sparks.
  */
-export function initializeUnicornClient<T extends UnicornConfig>(
+export function initializeUnicornClient(
 	client: Client,
 	logger: Logger,
-	config: ParsedConfig<T>,
-): UnicornClient<T> {
-	const unicornClient = client as UnicornClient<T>;
+	config: UnicornClient['config'],
+): UnicornClient {
+	const unicornClient = client as UnicornClient;
 
 	unicornClient.logger = logger;
 	unicornClient.config = config;

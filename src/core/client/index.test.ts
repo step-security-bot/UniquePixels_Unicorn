@@ -1,7 +1,6 @@
 import { describe, expect, mock, test } from 'bun:test';
 import { Client, Collection, GatewayIntentBits } from 'discord.js';
 import type { Logger } from 'pino';
-import type { ParsedConfig, UnicornConfig } from '@/core/configuration';
 import { type UnicornClient, initializeUnicornClient, isUnicornClient } from './index';
 
 // ─── Test Helpers ────────────────────────────────────────────────
@@ -19,7 +18,7 @@ function createMockLogger(): Logger {
 	} as unknown as Logger;
 }
 
-function createMockConfig(): ParsedConfig<UnicornConfig> {
+function createMockConfig(): UnicornClient['config'] {
 	return {
 		discord: {
 			appID: '123456789012345678',
@@ -30,7 +29,7 @@ function createMockConfig(): ParsedConfig<UnicornConfig> {
 		},
 		misc: {},
 		ids: { role: {}, channel: {}, emoji: {} },
-	} as unknown as ParsedConfig<UnicornConfig>;
+	} as unknown as UnicornClient['config'];
 }
 
 // ─── Tests ───────────────────────────────────────────────────────

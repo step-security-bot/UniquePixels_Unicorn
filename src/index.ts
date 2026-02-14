@@ -2,8 +2,8 @@ import { join } from 'node:path';
 import process from 'node:process';
 import { Client, REST, Routes } from 'discord.js';
 import type { Logger } from 'pino';
-import { initializeUnicornClient, type UnicornClient } from '@/core/client';
-import { type ParsedConfig, parseConfig } from '@/core/configuration';
+import { initializeUnicornClient } from '@/core/client';
+import { parseConfig } from '@/core/configuration';
 import { createLogger, registerDiscordLogging } from '@/core/logger';
 import {
 	collectCommandBuilders,
@@ -40,7 +40,7 @@ logger.info('Starting Unicorn...');
 
 // Parse and validate configuration
 // THROWS on validation failure - app cannot function without valid config
-const config: ParsedConfig<typeof appConfig> = parseConfig(appConfig);
+const config = parseConfig(appConfig);
 logger.debug('Configuration parsed successfully');
 logger.debug({ config }, 'Effective configuration:');
 
@@ -56,11 +56,7 @@ const discordClient: Client = new Client({
 });
 
 // Initialize UnicornClient - attaches logger, config, and collections
-const client: UnicornClient<typeof appConfig> = initializeUnicornClient(
-	discordClient,
-	logger,
-	config,
-);
+const client = initializeUnicornClient(discordClient, logger, config);
 
 // Register Discord.js logging hooks
 registerDiscordLogging(client, logger);

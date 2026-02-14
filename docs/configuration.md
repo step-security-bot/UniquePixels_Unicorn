@@ -140,7 +140,11 @@ The `envMap` wrapper works with any inner schema. In the Unicorn config, it wrap
 
 ## Type-Safe IDs
 
-The `ids` section provides type-safe access to Discord Snowflake IDs for roles, channels, and emoji. The key to this is the combination of `satisfies UnicornConfig` and the `const` generic on `parseConfig()`.
+The `ids` section provides type-safe access to Discord Snowflake IDs for roles, channels, and emoji. The key to this is:
+
+1. `satisfies UnicornConfig` on your config object, which validates the shape without widening literal keys
+2. `parseConfig()` with a `const T` generic that captures the exact literal type
+3. A **module augmentation** in `src/client.d.ts` that registers your config type with the framework
 
 ```ts
 // src/config.ts
@@ -154,7 +158,18 @@ export const appConfig = {
 } satisfies UnicornConfig;
 ```
 
-After parsing, the literal keys are preserved in the type:
+```ts
+// src/client.d.ts — register your config type once
+import type { appConfig } from './config.ts';
+
+declare module '@/core/client' {
+  interface UnicornClientRegistry {
+    config: typeof appConfig;
+  }
+}
+```
+
+After parsing, the literal keys are preserved in the type and available everywhere -- in sparks, guards, and helpers -- without threading generics:
 
 ```ts
 client.config.ids.role.admin    // typed as Snowflake
@@ -167,6 +182,7 @@ This works because:
 1. `satisfies UnicornConfig` validates the shape without widening the type -- literal keys like `'admin'` and `'logs'` are preserved
 2. `parseConfig` uses `const T extends UnicornConfig` to capture the exact literal type
 3. `ParsedConfig<T>` maps each key in `T['ids']` to `Snowflake`, preserving the key names while transforming the value types
+4. The `UnicornClientRegistry` module augmentation feeds your config's type into `UnicornClient`, so `client.config` is correctly typed everywhere without any additional annotations
 
 ## Health Check Server
 
