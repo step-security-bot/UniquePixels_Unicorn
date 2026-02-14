@@ -1,4 +1,3 @@
-/** biome-ignore-all lint/performance/noBarrelFile: This is a module that needs to be rolled up. */
 export {
 	type BaseCommandSpark,
 	type CommandAction,

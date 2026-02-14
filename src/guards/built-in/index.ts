@@ -1,4 +1,3 @@
-/** biome-ignore-all lint/performance/noBarrelFile: This is an appropriate use in this scenario */
 export { botHasPermission } from './bot-has-permission';
 export { type ChannelTypedInteraction, channelType } from './channel-type';
 export { hasPermission } from './has-permission';

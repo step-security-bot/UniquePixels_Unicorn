@@ -6,7 +6,7 @@ Unicorn is a Discord bot framework built on Discord.js and TypeScript, designed 
 
 **Dependencies:** `discord.js` v14, `zod` v4, `pino`, `cron`, `@sentry/bun`
 
-**Zod v4:** This project uses Zod 4. Use Zod 4 APIs — e.g. `z.url()`, `z.email()`, `z.uuid()` as standalone schemas instead of deprecated `z.string().url()` / `.email()` / `.uuid()` chains. Reference: <https://zod.dev/llms.txt> — fetch when unsure about Zod 4 APIs.
+**Zod v4:** Use Zod 4 APIs — e.g. `z.url()`, `z.email()`, `z.uuid()` as standalone schemas instead of deprecated `z.string().url()` / `.email()` / `.uuid()` chains. Reference: <https://zod.dev/llms.txt> — fetch when unsure.
 
 ## Bun Runtime
 
@@ -19,6 +19,9 @@ Unicorn is a Discord bot framework built on Discord.js and TypeScript, designed 
 ```bash
 bun start          # Run with Sentry preload
 bun lint           # Format + check + typecheck
+bun lint:tsc       # TypeScript typecheck
+bun lint:code      # Biome lint check
+bun lint:format    # Biome autoformat
 bun test           # Run tests (90% coverage threshold)
 ```
 
@@ -46,7 +49,6 @@ src/
 │   │   └── index.ts            # Barrel export
 │   └── lib/
 │       ├── attempt/            # Result type, attempt(), isError, unwrap, etc.
-│       ├── csv/                # CSV parser with Zod schema validation
 │       └── test-helpers/       # Mock client, interactions, guards for tests
 ├── guards/
 │   ├── index.ts                # Re-exports core + built-in guards
@@ -63,6 +65,10 @@ src/
 
 - `@/core/*` → `src/core/*`
 - `@/guards` / `@/guards/*` → `src/guards/`
+
+## Types of Development
+
+**Framework:** When in Unicorn repository, development focuses on core and built-in functionality. **Bot:** Child projects using core code to create bots — no changes to core or built-ins unless backporting.
 
 ## Architecture
 
@@ -89,7 +95,7 @@ Exact/prefix IDs use `client.components` (O(1)). Wildcard/regex use `client.comp
 
 ### Error Handling
 
-**Startup errors** throw and terminate. **Runtime errors** are logged but don't terminate. Use `attempt()` from `@/core/lib/attempt` for `Result<T, Error>` wrapper (includes `isError()`, `unwrap()`, helpers). All asynchronous calls and anything that may fail should be wrapped in `attempt()` to ensure errors are properly captured and handled via the Result type rather than throwing uncaught exceptions.
+**Core modules:** Errors bubble up — create custom error classes for proper context. **Startup:** Throw and terminate. **Sparks:** Log but don't terminate. Use `attempt()` from `@/core/lib/attempt` for `Result<T, Error>` wrapper (includes `isError()`, `unwrap()`, helpers). In sparks, all async calls and anything that may fail should use `attempt()` for Result-type error handling rather than uncaught exceptions.
 
 ### Configuration
 
@@ -103,21 +109,18 @@ Type-safe Zod schemas. `secret://KEY` → `Bun.env.KEY`. IDs are typed `Snowflak
 
 ## Linting
 
-Biome with strict rules: **kebab-case** filenames, **no barrel files** (except exempted core), **no `console`** (use `client.logger`), **no `process.env`** (use config/`Bun.env`), **no floating promises**, single quotes, organized imports
+Biome with strict rules: **kebab-case** filenames, **no `console`** (use `client.logger`), **no `process.env`** (use config/`Bun.env`), **no floating promises**, single quotes, organized imports
 
 ## Documentation
 
-- All exported and internal functions, classes, and types must have JSDoc docstrings. Keep them concise (one line where possible).
-- When adding or modifying a library module, update both inline JSDoc and the corresponding file in `docs/`. Docs should be clear and concise — illustrate how to use the API without business logic in examples.
+- All exported and internal functions, classes, and types must have JSDoc docstrings. Keep them concise (one line where possible). 80% coverage enforced by CodeRabbit.
+- When adding or modifying a library module or built-in spark, update both inline JSDoc and the corresponding file in `docs/`.
+- Docs should be clear and concise — illustrate API usage without business logic in examples.
+- Use GitHub callouts (`NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`) in `docs/` as appropriate.
 
 ## Testing
 
 Use Bun's test runner. Coverage threshold: 90%.
-
-```ts
-import { describe, expect, mock, test } from 'bun:test';
-import { createMockClient, createMockChatInputInteraction } from '@/core/lib/test-helpers';
-```
 
 **Test helpers** (`@/core/lib/test-helpers`): `createMockClient()`, `createMockChatInputInteraction()`, `createMockAutocompleteInteraction()`, `createMockComponentInteraction()`, `createMockBaseInteraction()`, `createMockMessage()`, `createMockReadyClient()`, `passThroughGuard()`, `failGuard()`
 

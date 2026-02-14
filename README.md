@@ -17,8 +17,7 @@ Unicorn provides a structured, type-safe approach to building Discord bots using
 
 ## Requirements
 
-- [Bun](https://bun.sh/) v1.0+
-- Node.js 18+ (for Discord.js compatibility)
+- [Bun](https://bun.sh/)
 
 ## Quick Start
 

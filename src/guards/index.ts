@@ -1,5 +1,3 @@
-/** biome-ignore-all lint/performance/noBarrelFile: This is a module that needs to be rolled up. */
-
 // Core guard infrastructure
 export {
 	createGuard,

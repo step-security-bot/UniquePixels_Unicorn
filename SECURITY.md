@@ -7,10 +7,14 @@ If you discover a security vulnerability, please report it by emailing [brian@un
 **Do not** open a public issue for security vulnerabilities.
 
 Include in your report:
+
 - Description of the vulnerability
 - Steps to reproduce
 - Potential impact
 - Suggested fix (if any)
+
+> [!WARNING]
+> If you submit AI slop generated reports, you will be blocked.
 
 ## Response Timeline
 
