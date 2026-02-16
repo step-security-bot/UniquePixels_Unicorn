@@ -29,7 +29,7 @@
 		"@biomejs/biome"
 	],
 	"dependencies": {
-		"@sentry/bun": "^10.38.0",
+		"@sentry/bun": "^10.39.0",
 		"cron": "^4.4.0",
 		"discord.js": "^14.25.1",
 		"pino": "^10.3.1",
