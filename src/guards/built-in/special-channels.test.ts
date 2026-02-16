@@ -56,36 +56,37 @@ function createMockGuildInput(
 const guardTestCases = [
 	{
 		name: 'hasSystemChannel',
-		guard: hasSystemChannel,
+		factory: hasSystemChannel,
 		channelKey: 'systemChannel' as const,
 		channelName: 'system channel',
 	},
 	{
 		name: 'hasPublicUpdatesChannel',
-		guard: hasPublicUpdatesChannel,
+		factory: hasPublicUpdatesChannel,
 		channelKey: 'publicUpdatesChannel' as const,
 		channelName: 'public updates channel',
 	},
 	{
 		name: 'hasRulesChannel',
-		guard: hasRulesChannel,
+		factory: hasRulesChannel,
 		channelKey: 'rulesChannel' as const,
 		channelName: 'rules channel',
 	},
 	{
 		name: 'hasSafetyAlertsChannel',
-		guard: hasSafetyAlertsChannel,
+		factory: hasSafetyAlertsChannel,
 		channelKey: 'safetyAlertsChannel' as const,
 		channelName: 'safety alerts channel',
 	},
 ] as const;
 
 // Run the same test suite for each special channel guard
-for (const { name, guard, channelKey, channelName } of guardTestCases) {
+for (const { name, factory, channelKey, channelName } of guardTestCases) {
 	describe(name, () => {
 		test('passes when channel exists and bot has permission', async () => {
 			const client = createMockClient();
 			const input = createMockGuildInput(channelKey, true, true, true);
+			const guard = factory();
 
 			const result = await guard(input, client);
 
@@ -98,6 +99,7 @@ for (const { name, guard, channelKey, channelName } of guardTestCases) {
 		test('fails when channel is not configured', async () => {
 			const client = createMockClient();
 			const input = createMockGuildInput(channelKey, false, true, true);
+			const guard = factory();
 
 			const result = await guard(input, client);
 
@@ -110,6 +112,7 @@ for (const { name, guard, channelKey, channelName } of guardTestCases) {
 		test('fails when bot lacks SendMessages permission', async () => {
 			const client = createMockClient();
 			const input = createMockGuildInput(channelKey, true, false, true);
+			const guard = factory();
 
 			const result = await guard(input, client);
 
@@ -122,6 +125,7 @@ for (const { name, guard, channelKey, channelName } of guardTestCases) {
 		test('fails when bot member is not available', async () => {
 			const client = createMockClient();
 			const input = createMockGuildInput(channelKey, true, true, false);
+			const guard = factory();
 
 			const result = await guard(input, client);
 
@@ -149,7 +153,7 @@ describe('special channel guards with different input types', () => {
 			channel: {},
 		};
 
-		const result = await hasSystemChannel(interaction, client);
+		const result = await hasSystemChannel()(interaction, client);
 
 		expect(result.ok).toBe(true);
 	});
@@ -168,7 +172,7 @@ describe('special channel guards with different input types', () => {
 			} as unknown as Guild,
 		};
 
-		const result = await hasRulesChannel(event, client);
+		const result = await hasRulesChannel()(event, client);
 
 		expect(result.ok).toBe(true);
 	});
