@@ -4,6 +4,7 @@ import {
 	Events,
 	type Interaction,
 	type MessageComponentInteraction,
+	MessageFlags,
 	type ModalSubmitInteraction,
 } from 'discord.js';
 import type { UnicornClient } from '@/core/client';
@@ -32,7 +33,7 @@ async function handleCommand(
 
 		await interaction.reply({
 			content: 'This command is not available.',
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 		return;
 	}
@@ -44,7 +45,7 @@ async function handleCommand(
 	if (!(result.ok || interaction.replied || interaction.deferred)) {
 		await interaction.reply({
 			content: result.reason,
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 	}
 }
@@ -99,7 +100,7 @@ async function handleComponent(
 
 		await interaction.reply({
 			content: 'This button/menu is no longer available.',
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 		return;
 	}
@@ -114,7 +115,7 @@ async function handleComponent(
 	if (!(result.ok || interaction.replied || interaction.deferred)) {
 		await interaction.reply({
 			content: result.reason,
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 	}
 }
@@ -141,7 +142,7 @@ async function handleModal(
 
 		await interaction.reply({
 			content: 'This form is no longer available.',
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 		return;
 	}
@@ -153,7 +154,7 @@ async function handleModal(
 	if (!(result.ok || interaction.replied || interaction.deferred)) {
 		await interaction.reply({
 			content: result.reason,
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 	}
 }

@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'bun:test';
-import { type Interaction, Events } from 'discord.js';
+import { type Interaction, Events, MessageFlags } from 'discord.js';
 import type { BaseCommandSpark } from '@/core/sparks/command';
 import type { BaseComponentSpark } from '@/core/sparks/component';
 import { createMockBaseInteraction, createMockClient } from '@/core/lib/test-helpers';
@@ -108,7 +108,7 @@ describe('interactionCreate', () => {
 					.reply,
 			).toHaveBeenCalledWith({
 				content: 'This command is not available.',
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 		});
 
@@ -141,7 +141,7 @@ describe('interactionCreate', () => {
 					.reply,
 			).toHaveBeenCalledWith({
 				content: 'Missing permissions',
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 		});
 
@@ -276,7 +276,7 @@ describe('interactionCreate', () => {
 					.reply,
 			).toHaveBeenCalledWith({
 				content: 'This button/menu is no longer available.',
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 		});
 
@@ -298,7 +298,7 @@ describe('interactionCreate', () => {
 					.reply,
 			).toHaveBeenCalledWith({
 				content: 'Admins only',
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 		});
 
@@ -346,7 +346,7 @@ describe('interactionCreate', () => {
 					.reply,
 			).toHaveBeenCalledWith({
 				content: 'This form is no longer available.',
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 		});
 
@@ -368,7 +368,7 @@ describe('interactionCreate', () => {
 					.reply,
 			).toHaveBeenCalledWith({
 				content: 'Not authorized',
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 		});
 
