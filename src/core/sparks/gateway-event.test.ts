@@ -7,9 +7,19 @@ import { defineGatewayEvent } from './gateway-event';
 // ─── Test Helpers ────────────────────────────────────────────────
 
 type MessageCreateArg = ClientEvents[typeof Events.MessageCreate][0];
+type MessageUpdateArgs = ClientEvents[typeof Events.MessageUpdate];
 
+/** Creates a mock MessageCreate event argument. */
 function createMockMessage(): MessageCreateArg {
 	return { content: 'hello' } as unknown as MessageCreateArg;
+}
+
+/** Creates a mock MessageUpdate event args tuple (oldMessage, newMessage). */
+function createMockMessageUpdateArgs(): MessageUpdateArgs {
+	return [
+		{ content: 'old', id: '1' } as unknown as MessageUpdateArgs[0],
+		{ content: 'new', id: '1' } as unknown as MessageUpdateArgs[1],
+	];
 }
 
 // ─── Tests ───────────────────────────────────────────────────────
@@ -96,7 +106,7 @@ describe('defineGatewayEvent', () => {
 
 			const client = createMockClient();
 			const msg = createMockMessage();
-			const result = await spark.execute(msg, client);
+			const result = await spark.execute([msg], client);
 
 			expect(result.ok).toBe(true);
 			expect(action).toHaveBeenCalledTimes(1);
@@ -116,7 +126,7 @@ describe('defineGatewayEvent', () => {
 			});
 
 			const client = createMockClient();
-			const result = await spark.execute(createMockMessage(), client);
+			const result = await spark.execute([createMockMessage()], client);
 
 			expect(result.ok).toBe(true);
 			expect(guard).toHaveBeenCalledTimes(1);
@@ -135,7 +145,7 @@ describe('defineGatewayEvent', () => {
 			});
 
 			const client = createMockClient();
-			const result = await spark.execute(createMockMessage(), client);
+			const result = await spark.execute([createMockMessage()], client);
 
 			expect(result.ok).toBe(false);
 			if (!result.ok) {
@@ -156,7 +166,7 @@ describe('defineGatewayEvent', () => {
 			});
 
 			const client = createMockClient();
-			await spark.execute(createMockMessage(), client);
+			await spark.execute([createMockMessage()], client);
 
 			expect(client.logger.debug).toHaveBeenCalledWith(
 				{ event: Events.MessageCreate, reason: 'Not in guild' },
@@ -173,7 +183,7 @@ describe('defineGatewayEvent', () => {
 			});
 
 			const client = createMockClient();
-			await spark.execute(createMockMessage(), client);
+			await spark.execute([createMockMessage()], client);
 
 			expect(client.logger.error).toHaveBeenCalledWith(
 				expect.objectContaining({ event: Events.MessageCreate }),
@@ -190,7 +200,7 @@ describe('defineGatewayEvent', () => {
 			});
 
 			const client = createMockClient();
-			const result = await spark.execute(createMockMessage(), client);
+			const result = await spark.execute([createMockMessage()], client);
 
 			expect(result.ok).toBe(true);
 		});
@@ -215,7 +225,7 @@ describe('defineGatewayEvent', () => {
 			});
 
 			const client = createMockClient();
-			await spark.execute(createMockMessage(), client);
+			await spark.execute([createMockMessage()], client);
 
 			expect(guard1).toHaveBeenCalledTimes(1);
 			expect(guard2).not.toHaveBeenCalled();
@@ -235,10 +245,53 @@ describe('defineGatewayEvent', () => {
 			});
 
 			const client = createMockClient();
-			const result = await spark.execute(createMockMessage(), client);
+			const result = await spark.execute([createMockMessage()], client);
 
 			expect(result.ok).toBe(true);
 			expect(action).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	describe('multi-argument events', () => {
+		test('passes remaining event args between guarded arg and client', async () => {
+			const action = mock(async () => {});
+			const spark = defineGatewayEvent({
+				event: Events.MessageUpdate,
+				action,
+			});
+
+			const client = createMockClient();
+			const [oldMsg, newMsg] = createMockMessageUpdateArgs();
+			const result = await spark.execute([oldMsg, newMsg], client);
+
+			expect(result.ok).toBe(true);
+			expect(action).toHaveBeenCalledTimes(1);
+			expect(action).toHaveBeenCalledWith(oldMsg, newMsg, client);
+		});
+
+		test('passes guarded first arg with remaining args on guard success', async () => {
+			const narrowed = {
+				content: 'old',
+				id: '1',
+				guild: {},
+			} as unknown as MessageUpdateArgs[0];
+			const guard = mock(
+				() => ({ ok: true as const, value: narrowed }) as const,
+			) as Guard<MessageUpdateArgs[0], MessageUpdateArgs[0]>;
+			const action = mock(async () => {});
+			const spark = defineGatewayEvent({
+				event: Events.MessageUpdate,
+				guards: [guard],
+				action,
+			});
+
+			const client = createMockClient();
+			const [oldMsg, newMsg] = createMockMessageUpdateArgs();
+			const result = await spark.execute([oldMsg, newMsg], client);
+
+			expect(result.ok).toBe(true);
+			expect(guard).toHaveBeenCalledTimes(1);
+			expect(action).toHaveBeenCalledWith(narrowed, newMsg, client);
 		});
 	});
 

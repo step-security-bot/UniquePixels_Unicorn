@@ -9,12 +9,18 @@ import { attempt, isError } from '@/core/lib/attempt';
  */
 type EventArg<E extends keyof ClientEvents> = ClientEvents[E][0];
 
+/** Drops the first element from a tuple type. */
+type Tail<T extends unknown[]> = T extends [unknown, ...infer Rest] ? Rest : [];
+
 /**
  * Action function for gateway events.
+ * Receives the guarded first arg, any remaining event args, then client.
  */
-export type GatewayEventAction<T> = (
-	arg: T,
-	client: UnicornClient,
+export type GatewayEventAction<
+	E extends keyof ClientEvents,
+	TGuarded extends EventArg<E> = EventArg<E>,
+> = (
+	...args: [TGuarded, ...Tail<ClientEvents[E]>, UnicornClient]
 ) => void | Promise<void>;
 
 /**
@@ -31,7 +37,7 @@ export interface GatewayEventOptions<
 	/** Guards to run before the action (optional) */
 	guards?: readonly Guard<EventArg<E>, TGuarded>[];
 	/** The action to run when the event fires */
-	action: GatewayEventAction<TGuarded>;
+	action: GatewayEventAction<E, TGuarded>;
 }
 
 /**
@@ -45,11 +51,11 @@ export interface GatewayEventSpark<
 	readonly event: E;
 	readonly once: boolean;
 	readonly guards: readonly Guard<EventArg<E>, TGuarded>[];
-	readonly action: GatewayEventAction<TGuarded>;
+	readonly action: GatewayEventAction<E, TGuarded>;
 
 	/** Execute the event handler (runs guards then action) */
 	execute(
-		arg: EventArg<E>,
+		eventArgs: ClientEvents[E],
 		client: UnicornClient,
 	): Promise<GuardResult<TGuarded>>;
 
@@ -95,13 +101,13 @@ export function defineGatewayEvent<
 		action,
 
 		async execute(
-			arg: EventArg<E>,
+			eventArgs: ClientEvents[E],
 			client: UnicornClient,
 		): Promise<GuardResult<TGuarded>> {
-			// Run guards
+			// Run guards on the first event arg
 			const guardResult = await runGuards(
 				guards as readonly Guard<unknown, unknown>[],
-				arg,
+				eventArgs[0],
 				client,
 			);
 
@@ -113,9 +119,10 @@ export function defineGatewayEvent<
 				return guardResult as GuardResult<TGuarded>;
 			}
 
-			// Execute action with error handling
-			const actionResult = await attempt(() =>
-				action(guardResult.value as TGuarded, client),
+			// Execute action with guarded first arg, remaining event args, then client
+			const actionResult = await attempt(
+				// @ts-expect-error: TypeScript cannot verify generic variadic tuple spreading
+				() => action(guardResult.value, ...eventArgs.slice(1), client),
 			);
 
 			if (isError(actionResult)) {
@@ -131,7 +138,7 @@ export function defineGatewayEvent<
 		register(client: UnicornClient): void {
 			const handler = async (...args: ClientEvents[E]) => {
 				try {
-					await this.execute(args[0], client);
+					await this.execute(args, client);
 				} catch (error) {
 					client.logger.error(
 						{ err: error, event },

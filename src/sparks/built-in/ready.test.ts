@@ -14,7 +14,7 @@ describe('ready spark', () => {
 		const client = createMockClient();
 		const readyClient = createMockReadyClient({ guildCount: 5 });
 
-		await ready.execute(readyClient, client);
+		await ready.execute([readyClient], client);
 
 		expect(client.logger.info).toHaveBeenCalledWith(
 			{ user: 'TestBot#1234', guilds: 5 },
@@ -26,7 +26,7 @@ describe('ready spark', () => {
 		const client = createMockClient();
 		const readyClient = createMockReadyClient({ guildCount: 0 });
 
-		await ready.execute(readyClient, client);
+		await ready.execute([readyClient], client);
 
 		expect(client.logger.info).toHaveBeenCalledWith(
 			{ user: 'TestBot#1234', guilds: 0 },

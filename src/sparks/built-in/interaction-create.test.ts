@@ -7,6 +7,7 @@ import { interactionCreate } from './interaction-create';
 
 // ─── Test Helpers ────────────────────────────────────────────────
 
+/** Creates a mock command spark with optional overrides. */
 function createMockCommandSpark(
 	overrides: Partial<BaseCommandSpark> = {},
 ): BaseCommandSpark {
@@ -20,6 +21,7 @@ function createMockCommandSpark(
 	} as unknown as BaseCommandSpark;
 }
 
+/** Creates a mock component spark with the given ID and optional overrides. */
 function createMockComponentSpark(
 	id: string,
 	overrides: Partial<BaseComponentSpark> = {},
@@ -35,6 +37,7 @@ function createMockComponentSpark(
 	} as unknown as BaseComponentSpark;
 }
 
+/** Creates a mock chat input command interaction. */
 function createChatInputInteraction(
 	commandName: string,
 	overrides: Record<string, unknown> = {},
@@ -46,6 +49,7 @@ function createChatInputInteraction(
 	});
 }
 
+/** Creates a mock autocomplete interaction. */
 function createAutocompleteInteraction(
 	commandName: string,
 ): Interaction {
@@ -55,6 +59,7 @@ function createAutocompleteInteraction(
 	});
 }
 
+/** Creates a mock message component (button/select) interaction. */
 function createComponentInteraction(
 	customId: string,
 	overrides: Record<string, unknown> = {},
@@ -66,6 +71,7 @@ function createComponentInteraction(
 	});
 }
 
+/** Creates a mock modal submit interaction. */
 function createModalInteraction(
 	customId: string,
 	overrides: Record<string, unknown> = {},
@@ -75,6 +81,25 @@ function createModalInteraction(
 		customId,
 		...overrides,
 	});
+}
+
+/** Extracts the reply mock from an interaction. */
+function getReplyMock(interaction: Interaction) {
+	return (interaction as unknown as { reply: ReturnType<typeof mock> })
+		.reply;
+}
+
+/** Asserts the interaction received an ephemeral reply with the given content. */
+function expectEphemeralReply(interaction: Interaction, content: string) {
+	expect(getReplyMock(interaction)).toHaveBeenCalledWith({
+		content,
+		flags: MessageFlags.Ephemeral,
+	});
+}
+
+/** Creates a mock execute that returns a guard failure with the given reason. */
+function failingExecute(reason: string) {
+	return mock(async () => ({ ok: false as const, reason }));
 }
 
 // ─── Tests ───────────────────────────────────────────────────────
@@ -93,7 +118,7 @@ describe('interactionCreate', () => {
 			client.commands.set('ping', spark);
 
 			const interaction = createChatInputInteraction('ping');
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
 			expect(spark.execute).toHaveBeenCalledTimes(1);
 		});
@@ -101,21 +126,15 @@ describe('interactionCreate', () => {
 		test('replies with "not available" for unknown commands', async () => {
 			const client = createMockClient();
 			const interaction = createChatInputInteraction('unknown');
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
-			expect(
-				(interaction as unknown as { reply: ReturnType<typeof mock> })
-					.reply,
-			).toHaveBeenCalledWith({
-				content: 'This command is not available.',
-				flags: MessageFlags.Ephemeral,
-			});
+			expectEphemeralReply(interaction, 'This command is not available.');
 		});
 
 		test('logs warning for unknown commands', async () => {
 			const client = createMockClient();
 			const interaction = createChatInputInteraction('unknown');
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
 			expect(client.logger.warn).toHaveBeenCalledWith(
 				expect.objectContaining({ command: 'unknown' }),
@@ -126,65 +145,44 @@ describe('interactionCreate', () => {
 		test('auto-replies guard failure reason when not yet replied', async () => {
 			const client = createMockClient();
 			const spark = createMockCommandSpark({
-				execute: mock(async () => ({
-					ok: false as const,
-					reason: 'Missing permissions',
-				})),
+				execute: failingExecute('Missing permissions'),
 			});
 			client.commands.set('kick', spark);
 
 			const interaction = createChatInputInteraction('kick');
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
-			expect(
-				(interaction as unknown as { reply: ReturnType<typeof mock> })
-					.reply,
-			).toHaveBeenCalledWith({
-				content: 'Missing permissions',
-				flags: MessageFlags.Ephemeral,
-			});
+			expectEphemeralReply(interaction, 'Missing permissions');
 		});
 
 		test('does NOT auto-reply guard failure when already replied', async () => {
 			const client = createMockClient();
 			const spark = createMockCommandSpark({
-				execute: mock(async () => ({
-					ok: false as const,
-					reason: 'Denied',
-				})),
+				execute: failingExecute('Denied'),
 			});
 			client.commands.set('kick', spark);
 
 			const interaction = createChatInputInteraction('kick', {
 				replied: true,
 			});
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
-			expect(
-				(interaction as unknown as { reply: ReturnType<typeof mock> })
-					.reply,
-			).not.toHaveBeenCalled();
+			expect(getReplyMock(interaction)).not.toHaveBeenCalled();
 		});
 
 		test('does NOT auto-reply guard failure when already deferred', async () => {
 			const client = createMockClient();
 			const spark = createMockCommandSpark({
-				execute: mock(async () => ({
-					ok: false as const,
-					reason: 'Denied',
-				})),
+				execute: failingExecute('Denied'),
 			});
 			client.commands.set('kick', spark);
 
 			const interaction = createChatInputInteraction('kick', {
 				deferred: true,
 			});
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
-			expect(
-				(interaction as unknown as { reply: ReturnType<typeof mock> })
-					.reply,
-			).not.toHaveBeenCalled();
+			expect(getReplyMock(interaction)).not.toHaveBeenCalled();
 		});
 
 		test('logs error when handler throws', async () => {
@@ -197,7 +195,7 @@ describe('interactionCreate', () => {
 			client.commands.set('ping', spark);
 
 			const interaction = createChatInputInteraction('ping');
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
 			expect(client.logger.error).toHaveBeenCalledWith(
 				expect.objectContaining({ context: 'command:ping' }),
@@ -217,7 +215,7 @@ describe('interactionCreate', () => {
 			client.commands.set('search', spark);
 
 			const interaction = createAutocompleteInteraction('search');
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
 			expect(executeAutocomplete).toHaveBeenCalledTimes(1);
 		});
@@ -225,17 +223,14 @@ describe('interactionCreate', () => {
 		test('silently skips unknown commands (debug log only)', async () => {
 			const client = createMockClient();
 			const interaction = createAutocompleteInteraction('unknown');
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
 			expect(client.logger.debug).toHaveBeenCalledWith(
 				expect.objectContaining({ command: 'unknown' }),
 				'Autocomplete for unknown command',
 			);
 			// Should not reply or error
-			expect(
-				(interaction as unknown as { reply: ReturnType<typeof mock> })
-					.reply,
-			).not.toHaveBeenCalled();
+			expect(getReplyMock(interaction)).not.toHaveBeenCalled();
 		});
 
 		test('silently skips commands without autocomplete', async () => {
@@ -245,7 +240,7 @@ describe('interactionCreate', () => {
 			client.commands.set('ping', spark);
 
 			const interaction = createAutocompleteInteraction('ping');
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
 			expect(client.logger.debug).toHaveBeenCalledWith(
 				expect.objectContaining({ command: 'ping' }),
@@ -261,7 +256,7 @@ describe('interactionCreate', () => {
 			client.components.set('confirm-btn', spark);
 
 			const interaction = createComponentInteraction('confirm-btn');
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
 			expect(spark.execute).toHaveBeenCalledTimes(1);
 		});
@@ -269,58 +264,40 @@ describe('interactionCreate', () => {
 		test('replies "no longer available" for unknown components', async () => {
 			const client = createMockClient();
 			const interaction = createComponentInteraction('unknown-btn');
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
-			expect(
-				(interaction as unknown as { reply: ReturnType<typeof mock> })
-					.reply,
-			).toHaveBeenCalledWith({
-				content: 'This button/menu is no longer available.',
-				flags: MessageFlags.Ephemeral,
-			});
+			expectEphemeralReply(
+				interaction,
+				'This button/menu is no longer available.',
+			);
 		});
 
 		test('auto-replies guard failure reason when not yet replied', async () => {
 			const client = createMockClient();
 			const spark = createMockComponentSpark('admin-btn', {
-				execute: mock(async () => ({
-					ok: false as const,
-					reason: 'Admins only',
-				})),
+				execute: failingExecute('Admins only'),
 			});
 			client.components.set('admin-btn', spark);
 
 			const interaction = createComponentInteraction('admin-btn');
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
-			expect(
-				(interaction as unknown as { reply: ReturnType<typeof mock> })
-					.reply,
-			).toHaveBeenCalledWith({
-				content: 'Admins only',
-				flags: MessageFlags.Ephemeral,
-			});
+			expectEphemeralReply(interaction, 'Admins only');
 		});
 
 		test('does NOT auto-reply guard failure when already replied', async () => {
 			const client = createMockClient();
 			const spark = createMockComponentSpark('admin-btn', {
-				execute: mock(async () => ({
-					ok: false as const,
-					reason: 'Admins only',
-				})),
+				execute: failingExecute('Admins only'),
 			});
 			client.components.set('admin-btn', spark);
 
 			const interaction = createComponentInteraction('admin-btn', {
 				replied: true,
 			});
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
-			expect(
-				(interaction as unknown as { reply: ReturnType<typeof mock> })
-					.reply,
-			).not.toHaveBeenCalled();
+			expect(getReplyMock(interaction)).not.toHaveBeenCalled();
 		});
 	});
 
@@ -331,7 +308,7 @@ describe('interactionCreate', () => {
 			client.components.set('feedback-modal', spark);
 
 			const interaction = createModalInteraction('feedback-modal');
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
 			expect(spark.execute).toHaveBeenCalledTimes(1);
 		});
@@ -339,58 +316,40 @@ describe('interactionCreate', () => {
 		test('replies "no longer available" for unknown modals', async () => {
 			const client = createMockClient();
 			const interaction = createModalInteraction('unknown-modal');
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
-			expect(
-				(interaction as unknown as { reply: ReturnType<typeof mock> })
-					.reply,
-			).toHaveBeenCalledWith({
-				content: 'This form is no longer available.',
-				flags: MessageFlags.Ephemeral,
-			});
+			expectEphemeralReply(
+				interaction,
+				'This form is no longer available.',
+			);
 		});
 
 		test('auto-replies guard failure reason when not yet replied', async () => {
 			const client = createMockClient();
 			const spark = createMockComponentSpark('admin-modal', {
-				execute: mock(async () => ({
-					ok: false as const,
-					reason: 'Not authorized',
-				})),
+				execute: failingExecute('Not authorized'),
 			});
 			client.components.set('admin-modal', spark);
 
 			const interaction = createModalInteraction('admin-modal');
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
-			expect(
-				(interaction as unknown as { reply: ReturnType<typeof mock> })
-					.reply,
-			).toHaveBeenCalledWith({
-				content: 'Not authorized',
-				flags: MessageFlags.Ephemeral,
-			});
+			expectEphemeralReply(interaction, 'Not authorized');
 		});
 
 		test('does NOT auto-reply guard failure when already deferred', async () => {
 			const client = createMockClient();
 			const spark = createMockComponentSpark('admin-modal', {
-				execute: mock(async () => ({
-					ok: false as const,
-					reason: 'Not authorized',
-				})),
+				execute: failingExecute('Not authorized'),
 			});
 			client.components.set('admin-modal', spark);
 
 			const interaction = createModalInteraction('admin-modal', {
 				deferred: true,
 			});
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
-			expect(
-				(interaction as unknown as { reply: ReturnType<typeof mock> })
-					.reply,
-			).not.toHaveBeenCalled();
+			expect(getReplyMock(interaction)).not.toHaveBeenCalled();
 		});
 	});
 
@@ -399,13 +358,10 @@ describe('interactionCreate', () => {
 			const client = createMockClient();
 			// All type guards return false by default
 			const interaction = createMockBaseInteraction();
-			await interactionCreate.execute(interaction, client);
+			await interactionCreate.execute([interaction], client);
 
 			// No commands or components should be invoked, no replies
-			expect(
-				(interaction as unknown as { reply: ReturnType<typeof mock> })
-					.reply,
-			).not.toHaveBeenCalled();
+			expect(getReplyMock(interaction)).not.toHaveBeenCalled();
 		});
 	});
 });
