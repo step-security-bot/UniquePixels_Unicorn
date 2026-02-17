@@ -9,13 +9,106 @@ const isDev: boolean = Bun.env.NODE_ENV === 'development';
 type PinoLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 type PinoLevelNumber = 10 | 20 | 30 | 40 | 50 | 60;
 
+/** Serialized error shape written to log records. */
+export interface SerializedError {
+	type: string;
+	message: string;
+	stack?: string | undefined;
+	cause?: unknown;
+	errors?: unknown[];
+	[key: string]: unknown;
+}
+
+/** Keys excluded from custom-property capture (already handled explicitly). */
+const KNOWN_ERROR_KEYS = new Set([
+	'name',
+	'type',
+	'message',
+	'stack',
+	'cause',
+	'errors',
+]);
+
+/** Normalizes a key by lowercasing and stripping separators for canonical comparison. */
+function normalizeKey(key: string): string {
+	return key.toLowerCase().replaceAll(/[-_]/g, '');
+}
+
+/** Keys whose values are redacted to prevent leaking secrets into logs. */
+export const SENSITIVE_ERROR_KEYS = new Set([
+	'token',
+	'accesstoken',
+	'authorization',
+	'cookie',
+	'setcookie',
+	'headers',
+	'password',
+	'secret',
+	'apikey',
+	'config',
+]);
+
+export const MAX_SERIALIZE_DEPTH = 5;
+
+/**
+ * Recursively serializes an Error into a plain object suitable for JSON logging.
+ *
+ * Handles `AggregateError.errors`, `Error.cause` chains, and any custom
+ * enumerable properties (e.g. Discord.js `code`, `status`, `method`).
+ */
+export function serializeError(
+	error: unknown,
+	depth = 0,
+): SerializedError | undefined {
+	if (!(error instanceof Error)) {
+		return;
+	}
+	if (depth >= MAX_SERIALIZE_DEPTH) {
+		return { type: error.name, message: error.message };
+	}
+
+	const serialized: SerializedError = {
+		type: error.name,
+		message: error.message,
+		stack: error.stack,
+	};
+
+	if (error.cause !== undefined) {
+		serialized.cause =
+			error.cause instanceof Error
+				? serializeError(error.cause, depth + 1)
+				: error.cause;
+	}
+
+	if (error instanceof AggregateError && error.errors.length > 0) {
+		serialized.errors = error.errors.map((nested) =>
+			nested instanceof Error
+				? (serializeError(nested, depth + 1) ?? nested)
+				: nested,
+		);
+	}
+
+	// Capture extra enumerable properties, redacting sensitive keys
+	for (const key of Object.keys(error)) {
+		const normalized = normalizeKey(key);
+		if (!KNOWN_ERROR_KEYS.has(normalized)) {
+			serialized[key] = SENSITIVE_ERROR_KEYS.has(normalized)
+				? '[REDACTED]'
+				: (error as unknown as Record<string, unknown>)[key];
+		}
+	}
+
+	return serialized;
+}
+
 interface PinoLogRecord {
 	level: PinoLevelNumber;
 	time: number;
 	pid: number;
 	hostname: string;
 	msg?: string;
-	err?: { type: string; message: string; stack?: string };
+	err?: SerializedError;
+	error?: SerializedError;
 	[key: string]: unknown;
 }
 
@@ -65,12 +158,8 @@ export interface SentryClient {
 /**
  * Processes a Pino log record and sends it to Sentry.
  *
- * Determines the appropriate Sentry severity level and captures either:
- * - Errors/warnings with err field as exceptions
- * - Info/warn/error/fatal messages as Sentry messages
- *
- * Extracted to enable async/deferred execution via setImmediate, preventing
- * Sentry API calls from blocking the main event loop.
+ * Checks both `err` and `error` keys for serialized errors, forwarding
+ * cause chains and nested errors as Sentry extra context.
  *
  * @param record - The Pino log record to process
  * @param sentryClient - The Sentry client instance (injectable for testing)
@@ -84,6 +173,7 @@ function processSentryLog(
 	const {
 		msg,
 		err,
+		error: errorField,
 		level: _level,
 		time: _time,
 		pid: _pid,
@@ -91,16 +181,33 @@ function processSentryLog(
 		...extra
 	} = record;
 
+	// Check both `err` (pino convention) and `error` (common usage) keys
+	const serializedError = err ?? errorField;
+
 	// Capture errors/warnings as exceptions (prioritize over message)
-	if (ERROR_LEVELS.has(pinoLevel) && err) {
-		const error = new Error(err.message);
-		error.name = err.type;
-		if (err.stack) {
-			error.stack = err.stack;
+	if (ERROR_LEVELS.has(pinoLevel) && serializedError) {
+		const error = new Error(serializedError.message);
+		error.name = serializedError.type;
+		if (serializedError.stack) {
+			error.stack = serializedError.stack;
 		}
+		const {
+			type: _type,
+			message: _message,
+			stack: _stack,
+			cause,
+			errors,
+			...customFields
+		} = serializedError;
 		sentryClient.captureException(error, {
 			level: sentryLevel,
-			extra: { ...extra, originalMessage: msg },
+			extra: {
+				...extra,
+				...customFields,
+				originalMessage: msg,
+				...(cause ? { cause } : {}),
+				...(errors ? { errors } : {}),
+			},
 		});
 	} else if (LOG_LEVELS.has(pinoLevel)) {
 		// Capture as Sentry message
@@ -147,8 +254,12 @@ export function createSentryStream(
 			setImmediate(() => {
 				try {
 					processSentryLog(record, sentryClient);
-				} catch {
-					// Silently ignore Sentry errors to avoid log loops
+				} catch (error) {
+					// Surface Sentry errors in dev for debugging; silent in prod to avoid log loops
+					if (isDev) {
+						// biome-ignore lint/suspicious/noConsole: cannot use logger inside its own transport
+						console.error('[sentry-stream]', error);
+					}
 				}
 			});
 
@@ -161,14 +272,20 @@ export function createSentryStream(
 /**
  * Creates a pino logger configured for the current environment.
  *
+ * Both `err` and `error` keys are serialized with full context including
+ * AggregateError.errors, Error.cause chains, and custom properties.
+ *
  * In production, logs are sent to Sentry asynchronously via setImmediate,
  * preventing Sentry API calls from blocking the main event loop.
  * In development, pino-pretty outputs colorized logs to console.
  */
 export function createLogger(): Logger {
+	const serializers = { err: serializeError, error: serializeError };
+
 	if (isDev) {
 		return pino({
 			level: 'debug',
+			serializers,
 			transport: {
 				target: 'pino-pretty',
 				options: { colorize: true },
@@ -177,7 +294,7 @@ export function createLogger(): Logger {
 	}
 
 	// Prod: Async stream - Sentry calls are deferred via setImmediate
-	return pino({ level: 'info' }, createSentryStream());
+	return pino({ level: 'info', serializers }, createSentryStream());
 }
 
 /**
@@ -192,6 +309,6 @@ export function registerDiscordLogging(client: Client, log: Logger): void {
 		log.warn(message);
 	});
 	client.on(Events.Error, (error) => {
-		log.error(error);
+		log.error({ err: error }, error.message);
 	});
 }

@@ -5,11 +5,14 @@ import {
 	createLogger,
 	createSentryStream,
 	registerDiscordLogging,
+	serializeError,
+	MAX_SERIALIZE_DEPTH,
 	PINO_TO_SENTRY_LEVEL,
 	PINO_LEVEL_NAME,
 	ERROR_LEVELS,
 	LOG_LEVELS,
 	type SentryClient,
+	type SerializedError,
 } from './index.ts';
 
 // Create mock Sentry client for dependency injection
@@ -20,6 +23,11 @@ const mockSentry: SentryClient = {
 	captureException: mockCaptureException,
 	captureMessage: mockCaptureMessage,
 };
+
+/** Drains the event loop so setImmediate callbacks execute. */
+function waitForImmediate(): Promise<void> {
+	return new Promise((resolve) => setImmediate(resolve));
+}
 
 // Types for test assertions
 type CaptureMessageCall = [string, { level: string; extra?: Record<string, unknown> }];
@@ -48,6 +56,144 @@ describe('createLogger', () => {
 	});
 });
 
+describe('serializeError', () => {
+	test('returns undefined for non-Error values', () => {
+		expect(serializeError('not an error')).toBeUndefined();
+		expect(serializeError(42)).toBeUndefined();
+		expect(serializeError(null)).toBeUndefined();
+		expect(serializeError(undefined)).toBeUndefined();
+		expect(serializeError({ message: 'fake' })).toBeUndefined();
+	});
+
+	test('serializes a basic Error', () => {
+		const error = new Error('something broke');
+		const result = serializeError(error) as SerializedError;
+
+		expect(result.type).toBe('Error');
+		expect(result.message).toBe('something broke');
+		expect(result.stack).toBeDefined();
+		expect(result.cause).toBeUndefined();
+		expect(result.errors).toBeUndefined();
+	});
+
+	test('serializes Error.cause chain', () => {
+		const root = new Error('root cause');
+		const wrapper = new Error('wrapper', { cause: root });
+		const result = serializeError(wrapper) as SerializedError;
+
+		expect(result.message).toBe('wrapper');
+		expect(result.cause).toBeDefined();
+		const cause = result.cause as SerializedError;
+		expect(cause.type).toBe('Error');
+		expect(cause.message).toBe('root cause');
+	});
+
+	test('serializes non-Error cause values as-is', () => {
+		const error = new Error('bad response', { cause: { status: 404 } });
+		const result = serializeError(error) as SerializedError;
+
+		expect(result.cause).toEqual({ status: 404 });
+	});
+
+	test('serializes AggregateError with nested errors', () => {
+		const inner1 = new Error('first');
+		const inner2 = new Error('second');
+		const aggregate = new AggregateError([inner1, inner2], 'multiple failures');
+		const result = serializeError(aggregate) as SerializedError;
+
+		expect(result.type).toBe('AggregateError');
+		expect(result.message).toBe('multiple failures');
+		expect(result.errors).toHaveLength(2);
+		const errors = result.errors as SerializedError[];
+		expect(errors[0]?.message).toBe('first');
+		expect(errors[1]?.message).toBe('second');
+	});
+
+	test('captures custom enumerable properties', () => {
+		const error = new Error('discord error');
+		Object.assign(error, { code: 50013, status: 403, method: 'PATCH' });
+		const result = serializeError(error) as SerializedError;
+
+		expect(result['code']).toBe(50013);
+		expect(result['status']).toBe(403);
+		expect(result['method']).toBe('PATCH');
+	});
+
+	test('redacts sensitive enumerable properties', () => {
+		const error = new Error('auth failure');
+		Object.assign(error, {
+			token: 'secret-token-123',
+			apiKey: 'key-456',
+			password: 'hunter2',
+			Authorization: 'Bearer xyz',
+			code: 401,
+		});
+		const result = serializeError(error) as SerializedError;
+
+		expect(result['token']).toBe('[REDACTED]');
+		expect(result['apiKey']).toBe('[REDACTED]');
+		expect(result['password']).toBe('[REDACTED]');
+		expect(result['Authorization']).toBe('[REDACTED]');
+		// Non-sensitive keys still pass through
+		expect(result['code']).toBe(401);
+	});
+
+	test('redacts keys with separator variants (hyphens, underscores)', () => {
+		const error = new Error('leak check');
+		Object.assign(error, {
+			api_key: 'key-1',
+			'api-key': 'key-2',
+			access_token: 'tok-1',
+			'set-cookie': 'session=abc',
+			'Set_Cookie': 'session=def',
+		});
+		const result = serializeError(error) as SerializedError;
+
+		expect(result['api_key']).toBe('[REDACTED]');
+		expect(result['api-key']).toBe('[REDACTED]');
+		expect(result['access_token']).toBe('[REDACTED]');
+		expect(result['set-cookie']).toBe('[REDACTED]');
+		expect(result['Set_Cookie']).toBe('[REDACTED]');
+	});
+
+	test('respects max depth to prevent infinite recursion', () => {
+		// Build a cause chain deeper than MAX_SERIALIZE_DEPTH (5)
+		let error: Error = new Error('deepest');
+		for (let i = 0; i < 7; i++) {
+			error = new Error(`level-${i}`, { cause: error });
+		}
+		const result = serializeError(error) as SerializedError;
+
+		// Walk down the chain — should truncate at depth 5
+		let current: SerializedError | undefined = result;
+		let depth = 0;
+		while (current?.cause && typeof current.cause === 'object' && 'type' in current.cause) {
+			current = current.cause as SerializedError;
+			depth++;
+		}
+		// At max depth the cause chain stops being recursively expanded
+		expect(depth).toBeLessThanOrEqual(MAX_SERIALIZE_DEPTH);
+		expect(current).toBeDefined();
+	});
+
+	test('preserves named error types', () => {
+		const error = new TypeError('not a function');
+		const result = serializeError(error) as SerializedError;
+
+		expect(result.type).toBe('TypeError');
+		expect(result.message).toBe('not a function');
+	});
+
+	test('does not let a custom "type" property overwrite serialized.type', () => {
+		const error = new TypeError('bad input');
+		Object.assign(error, { type: 'SpoofedType', code: 42 });
+		const result = serializeError(error) as SerializedError;
+
+		expect(result.type).toBe('TypeError');
+		expect(result['code']).toBe(42);
+	});
+});
+
 describe('Sentry stream integration', () => {
 	beforeEach(() => {
 		mockCaptureException.mockClear();
@@ -59,7 +205,7 @@ describe('Sentry stream integration', () => {
 		const logger = pino({ level: 'info' }, stream);
 		logger.info('test info message');
 
-		await new Promise((resolve) => setTimeout(resolve, 50));
+		await waitForImmediate();
 
 		expect(mockCaptureMessage).toHaveBeenCalled();
 		const [message, options] = mockCaptureMessage.mock.calls[0] as unknown as CaptureMessageCall;
@@ -72,7 +218,7 @@ describe('Sentry stream integration', () => {
 		const logger = pino({ level: 'info' }, stream);
 		logger.warn('test warning message');
 
-		await new Promise((resolve) => setTimeout(resolve, 50));
+		await waitForImmediate();
 
 		expect(mockCaptureMessage).toHaveBeenCalled();
 		const [message, options] = mockCaptureMessage.mock.calls[0] as unknown as CaptureMessageCall;
@@ -86,7 +232,7 @@ describe('Sentry stream integration', () => {
 		const testError = new Error('test error');
 		logger.error(testError);
 
-		await new Promise((resolve) => setTimeout(resolve, 50));
+		await waitForImmediate();
 
 		expect(mockCaptureException).toHaveBeenCalled();
 		const [error, options] = mockCaptureException.mock.calls[0] as unknown as CaptureExceptionCall;
@@ -100,7 +246,7 @@ describe('Sentry stream integration', () => {
 		const testError = new Error('fatal error');
 		logger.fatal(testError);
 
-		await new Promise((resolve) => setTimeout(resolve, 50));
+		await waitForImmediate();
 
 		expect(mockCaptureException).toHaveBeenCalled();
 		const [error, options] = mockCaptureException.mock.calls[0] as unknown as CaptureExceptionCall;
@@ -113,7 +259,7 @@ describe('Sentry stream integration', () => {
 		const logger = pino({ level: 'info' }, stream);
 		logger.info({ userId: 123, action: 'login' }, 'user logged in');
 
-		await new Promise((resolve) => setTimeout(resolve, 50));
+		await waitForImmediate();
 
 		expect(mockCaptureMessage).toHaveBeenCalled();
 		const [, options] = mockCaptureMessage.mock.calls[0] as unknown as CaptureMessageCall;
@@ -126,7 +272,7 @@ describe('Sentry stream integration', () => {
 		const logger = pino({ level: 'debug' }, stream);
 		logger.debug('debug message');
 
-		await new Promise((resolve) => setTimeout(resolve, 50));
+		await waitForImmediate();
 
 		// Debug is not in LOG_LEVELS, so captureMessage should not be called
 		expect(mockCaptureMessage).not.toHaveBeenCalled();
@@ -138,10 +284,105 @@ describe('Sentry stream integration', () => {
 		const logger = pino({ level: 'trace' }, stream);
 		logger.trace('trace message');
 
-		await new Promise((resolve) => setTimeout(resolve, 50));
+		await waitForImmediate();
 
 		expect(mockCaptureMessage).not.toHaveBeenCalled();
 		expect(mockCaptureException).not.toHaveBeenCalled();
+	});
+
+	test('captures exception from error key (not just err)', async () => {
+		const stream = createSentryStream(mockSentry);
+
+		const record = {
+			level: 50,
+			time: Date.now(),
+			pid: 1,
+			hostname: 'test',
+			msg: 'something failed',
+			error: { type: 'TypeError', message: 'cannot read property' },
+		};
+
+		await new Promise<void>((resolve, reject) => {
+			stream.write(JSON.stringify(record) + '\n', (err) => (err ? reject(err) : resolve()));
+		});
+		await waitForImmediate();
+
+		expect(mockCaptureException).toHaveBeenCalled();
+		const [error] = mockCaptureException.mock.calls[0] as unknown as CaptureExceptionCall;
+		expect(error.message).toBe('cannot read property');
+		expect(error.name).toBe('TypeError');
+	});
+
+	test('includes custom error properties in Sentry extra context', async () => {
+		const stream = createSentryStream(mockSentry);
+		const serializers = { err: serializeError, error: serializeError };
+		const logger = pino({ level: 'info', serializers }, stream);
+		const testError = new Error('discord error');
+		Object.assign(testError, { code: 50013, status: 403, method: 'PATCH' });
+		logger.error({ err: testError }, 'API call failed');
+
+		await waitForImmediate();
+
+		expect(mockCaptureException).toHaveBeenCalled();
+		const [, options] = mockCaptureException.mock.calls[0] as unknown as CaptureExceptionCall;
+		expect(options.extra?.['code']).toBe(50013);
+		expect(options.extra?.['status']).toBe(403);
+		expect(options.extra?.['method']).toBe('PATCH');
+		expect(options.extra?.['originalMessage']).toBe('API call failed');
+	});
+
+	test('includes cause and errors in Sentry extra context', async () => {
+		const stream = createSentryStream(mockSentry);
+
+		const record = {
+			level: 50,
+			time: Date.now(),
+			pid: 1,
+			hostname: 'test',
+			msg: 'aggregate failure',
+			err: {
+				type: 'AggregateError',
+				message: 'Received one or more errors',
+				cause: { type: 'Error', message: 'root cause' },
+				errors: [
+					{ type: 'Error', message: 'sub-error 1' },
+					{ type: 'Error', message: 'sub-error 2' },
+				],
+			},
+		};
+
+		await new Promise<void>((resolve, reject) => {
+			stream.write(JSON.stringify(record) + '\n', (err) => (err ? reject(err) : resolve()));
+		});
+		await waitForImmediate();
+
+		expect(mockCaptureException).toHaveBeenCalled();
+		const [, options] = mockCaptureException.mock.calls[0] as unknown as CaptureExceptionCall;
+		expect(options.extra?.['cause']).toEqual({ type: 'Error', message: 'root cause' });
+		expect(options.extra?.['errors']).toHaveLength(2);
+	});
+
+	test('prefers err key over error key when both present', async () => {
+		const stream = createSentryStream(mockSentry);
+
+		const record = {
+			level: 50,
+			time: Date.now(),
+			pid: 1,
+			hostname: 'test',
+			msg: 'dual keys',
+			err: { type: 'Error', message: 'from err' },
+			error: { type: 'Error', message: 'from error' },
+		};
+
+		await new Promise<void>((resolve, reject) => {
+			stream.write(JSON.stringify(record) + '\n', (err) => (err ? reject(err) : resolve()));
+		});
+		await waitForImmediate();
+
+		expect(mockCaptureException).toHaveBeenCalled();
+		const [error] = mockCaptureException.mock.calls[0] as unknown as CaptureExceptionCall;
+		expect(error.message).toBe('from err');
 	});
 });
 
@@ -156,7 +397,7 @@ describe('level mappings', () => {
 		const logger = pino({ level: 'info' }, stream);
 		logger.warn('warning test');
 
-		await new Promise((resolve) => setTimeout(resolve, 50));
+		await waitForImmediate();
 
 		const [, options] = mockCaptureMessage.mock.calls[0] as unknown as CaptureMessageCall;
 		expect(options.level).toBe('warning');
@@ -167,7 +408,7 @@ describe('level mappings', () => {
 		const logger = pino({ level: 'info' }, stream);
 		logger.error('error test');
 
-		await new Promise((resolve) => setTimeout(resolve, 50));
+		await waitForImmediate();
 
 		const [, options] = mockCaptureMessage.mock.calls[0] as unknown as CaptureMessageCall;
 		expect(options.level).toBe('error');
@@ -178,7 +419,7 @@ describe('level mappings', () => {
 		const logger = pino({ level: 'info' }, stream);
 		logger.fatal('fatal test');
 
-		await new Promise((resolve) => setTimeout(resolve, 50));
+		await waitForImmediate();
 
 		const [, options] = mockCaptureMessage.mock.calls[0] as unknown as CaptureMessageCall;
 		expect(options.level).toBe('fatal');
@@ -244,7 +485,7 @@ describe('stream edge cases', () => {
 				stream.write('', (err) => (err ? reject(err) : resolve()));
 			});
 
-			await new Promise((resolve) => setTimeout(resolve, 50));
+			await waitForImmediate();
 
 			// Should not call Sentry for empty lines
 			expect(mockCaptureMessage).not.toHaveBeenCalled();
@@ -266,7 +507,7 @@ describe('stream edge cases', () => {
 				stream.write('not valid json\n', (err) => (err ? reject(err) : resolve()));
 			});
 
-			await new Promise((resolve) => setTimeout(resolve, 50));
+			await waitForImmediate();
 
 			// Should not throw and should write to stdout as fallback
 			expect(mockCaptureMessage).not.toHaveBeenCalled();
@@ -297,7 +538,7 @@ describe('stream edge cases', () => {
 				stream.write(JSON.stringify(record) + '\n', (err) => (err ? reject(err) : resolve()));
 			});
 
-			await new Promise((resolve) => setTimeout(resolve, 50));
+			await waitForImmediate();
 
 			expect(mockCaptureException).toHaveBeenCalled();
 			const [error] = mockCaptureException.mock.calls[0] as unknown as CaptureExceptionCall;
@@ -327,7 +568,7 @@ describe('stream edge cases', () => {
 				stream.write(JSON.stringify(record) + '\n', (err) => (err ? reject(err) : resolve()));
 			});
 
-			await new Promise((resolve) => setTimeout(resolve, 50));
+			await waitForImmediate();
 
 			expect(mockCaptureMessage).toHaveBeenCalled();
 			const [message] = mockCaptureMessage.mock.calls[0] as unknown as CaptureMessageCall;
@@ -356,7 +597,7 @@ describe('stream edge cases', () => {
 				stream.write(JSON.stringify(record) + '\n', (err) => (err ? reject(err) : resolve()));
 			});
 
-			await new Promise((resolve) => setTimeout(resolve, 50));
+			await waitForImmediate();
 
 			// Unknown level defaults to 'info' which is in LOG_LEVELS
 			expect(mockCaptureMessage).toHaveBeenCalled();
@@ -432,7 +673,7 @@ describe('registerDiscordLogging', () => {
 		expect(mockWarn).toHaveBeenCalledWith('warning message');
 	});
 
-	test('error handler forwards errors to logger.error', () => {
+	test('error handler forwards errors to logger.error with err key', () => {
 		const handlers: Record<string, (arg: unknown) => void> = {};
 		const mockOn = mock((event: string, handler: (arg: unknown) => void) => {
 			handlers[event] = handler;
@@ -453,6 +694,6 @@ describe('registerDiscordLogging', () => {
 		const testError = new Error('test error');
 		errorHandler?.(testError);
 
-		expect(mockError).toHaveBeenCalledWith(testError);
+		expect(mockError).toHaveBeenCalledWith({ err: testError }, 'test error');
 	});
 });
