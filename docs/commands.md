@@ -40,7 +40,7 @@ Guards run before the action and can narrow the interaction type:
 ```ts
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { hasPermission, inCachedGuild } from '@/guards';
+import { hasPermission, inCachedGuild } from '@/guards/built-in';
 
 export const kick = defineCommand({
   command: new SlashCommandBuilder()
@@ -123,7 +123,7 @@ For commands like `/manage list`, `/manage add`, `/manage remove`:
 ```ts
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { defineCommandGroup } from '@/core/sparks';
-import { hasPermission, inCachedGuild } from '@/guards';
+import { hasPermission, inCachedGuild } from '@/guards/built-in';
 
 export const manage = defineCommandGroup({
   command: new SlashCommandBuilder()
@@ -167,7 +167,7 @@ For deeper nesting like `/settings roles add`, `/settings roles remove`, `/setti
 ```ts
 import { SlashCommandBuilder } from 'discord.js';
 import { defineCommandGroup } from '@/core/sparks';
-import { inCachedGuild } from '@/guards';
+import { inCachedGuild } from '@/guards/built-in';
 
 export const settings = defineCommandGroup({
   command: new SlashCommandBuilder()
@@ -313,7 +313,7 @@ Each subcommand file exports a plain handler object:
 ```ts
 // src/sparks/manage/subcommands/add.ts
 import type { SubcommandHandler } from '@/core/sparks';
-import { hasPermission } from '@/guards';
+import { hasPermission } from '@/guards/built-in';
 import { PermissionFlagsBits } from 'discord.js';
 
 export const add: SubcommandHandler = {
@@ -330,7 +330,7 @@ Then compose them in the command file:
 // src/sparks/manage/command.ts
 import { SlashCommandBuilder } from 'discord.js';
 import { defineCommandGroup } from '@/core/sparks';
-import { inCachedGuild } from '@/guards';
+import { inCachedGuild } from '@/guards/built-in';
 import { add } from './subcommands/add';
 import { list } from './subcommands/list';
 import { remove } from './subcommands/remove';

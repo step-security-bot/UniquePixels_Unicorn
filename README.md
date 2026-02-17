@@ -120,7 +120,7 @@ Guards are composable validation functions that run before a spark's action:
 ```ts
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { inCachedGuild, hasPermission } from '@/guards';
+import { inCachedGuild, hasPermission } from '@/guards/built-in';
 
 export const kick = defineCommand({
   command: new SlashCommandBuilder()

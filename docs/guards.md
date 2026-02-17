@@ -11,7 +11,7 @@ Guards are used with commands, components, and gateway event sparks.
 
 ## Built-in Guards
 
-Unicorn ships with a set of guards covering the most common validation needs. Import them from `@/guards`:
+Unicorn ships with a set of guards covering the most common validation needs. Import them from `@/guards/built-in`:
 
 ```ts
 import {
@@ -27,7 +27,7 @@ import {
   hasPublicUpdatesChannel,
   hasRulesChannel,
   hasSafetyAlertsChannel,
-} from '@/guards';
+} from '@/guards/built-in';
 ```
 
 ### `inCachedGuild`
@@ -39,7 +39,7 @@ This is the most commonly used guard and should come first in any guard chain th
 ```ts
 import { SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { inCachedGuild } from '@/guards';
+import { inCachedGuild } from '@/guards/built-in';
 
 export const serverInfo = defineCommand({
   command: new SlashCommandBuilder()
@@ -62,7 +62,7 @@ Checks that the invoking user has the specified permission(s). The input must al
 ```ts
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { hasPermission, inCachedGuild } from '@/guards';
+import { hasPermission, inCachedGuild } from '@/guards/built-in';
 
 export const purge = defineCommand({
   command: new SlashCommandBuilder()
@@ -99,7 +99,7 @@ Checks that the **bot** has the specified permission(s) in the current channel. 
 ```ts
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { botHasPermission, inCachedGuild } from '@/guards';
+import { botHasPermission, inCachedGuild } from '@/guards/built-in';
 
 export const embed = defineCommand({
   command: new SlashCommandBuilder()
@@ -121,7 +121,7 @@ Ensures the interaction is in a channel of the specified type(s). Narrows the in
 ```ts
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { channelType } from '@/guards';
+import { channelType } from '@/guards/built-in';
 
 export const threadOnly = defineCommand({
   command: new SlashCommandBuilder()
@@ -143,7 +143,7 @@ Restricts usage to a whitelist of user IDs. Useful for owner-only or admin-only 
 ```ts
 import { SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { isUser } from '@/guards';
+import { isUser } from '@/guards/built-in';
 
 export const deploy = defineCommand({
   command: new SlashCommandBuilder()
@@ -165,7 +165,7 @@ Filters out messages from bots. This guard operates on `Message`, not `Interacti
 ```ts
 import { Events } from 'discord.js';
 import { defineGatewayEvent } from '@/core/sparks';
-import { notBot } from '@/guards';
+import { notBot } from '@/guards/built-in';
 
 export const messageLogger = defineGatewayEvent({
   event: Events.MessageCreate,
@@ -185,7 +185,7 @@ Ensures a message was sent in a guild (not a DM). Like `notBot`, this guard oper
 ```ts
 import { Events } from 'discord.js';
 import { defineGatewayEvent } from '@/core/sparks';
-import { messageInGuild, notBot } from '@/guards';
+import { messageInGuild, notBot } from '@/guards/built-in';
 
 export const guildMessages = defineGatewayEvent({
   event: Events.MessageCreate,
@@ -213,7 +213,7 @@ Limits how many times a user (or other key) can trigger an action within a time 
 ```ts
 import { SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { rateLimit } from '@/guards';
+import { rateLimit } from '@/guards/built-in';
 
 // 3 uses per 30 seconds per user
 export const generate = defineCommand({
@@ -232,7 +232,7 @@ With a custom key function for per-guild rate limiting:
 ```ts
 import { SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { inCachedGuild, rateLimit } from '@/guards';
+import { inCachedGuild, rateLimit } from '@/guards/built-in';
 
 export const announce = defineCommand({
   command: new SlashCommandBuilder()
@@ -269,7 +269,7 @@ Ensures the guild has a system channel configured and the bot can send messages 
 ```ts
 import { SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { hasSystemChannel, inCachedGuild } from '@/guards';
+import { hasSystemChannel, inCachedGuild } from '@/guards/built-in';
 
 export const announce = defineCommand({
   command: new SlashCommandBuilder()
@@ -289,7 +289,7 @@ Works with gateway events (pass the event arg type for full narrowing):
 ```ts
 import { type GuildMember, Events } from 'discord.js';
 import { defineGatewayEvent } from '@/core/sparks';
-import { hasSystemChannel } from '@/guards';
+import { hasSystemChannel } from '@/guards/built-in';
 
 export const memberLeave = defineGatewayEvent({
   event: Events.GuildMemberRemove,
@@ -313,7 +313,7 @@ Ensures the guild has a public updates channel configured and the bot can send m
 ```ts
 import { SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { hasPublicUpdatesChannel, inCachedGuild } from '@/guards';
+import { hasPublicUpdatesChannel, inCachedGuild } from '@/guards/built-in';
 
 export const communityUpdate = defineCommand({
   command: new SlashCommandBuilder()
@@ -332,7 +332,7 @@ Works with gateway events:
 ```ts
 import { type GuildMember, Events } from 'discord.js';
 import { defineGatewayEvent } from '@/core/sparks';
-import { hasPublicUpdatesChannel } from '@/guards';
+import { hasPublicUpdatesChannel } from '@/guards/built-in';
 
 export const memberWelcome = defineGatewayEvent({
   event: Events.GuildMemberAdd,
@@ -355,7 +355,7 @@ Ensures the guild has a rules channel configured and the bot can send messages i
 ```ts
 import { SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { hasRulesChannel, inCachedGuild } from '@/guards';
+import { hasRulesChannel, inCachedGuild } from '@/guards/built-in';
 
 export const updateRules = defineCommand({
   command: new SlashCommandBuilder()
@@ -381,7 +381,7 @@ Ensures the guild has a safety alerts channel configured and the bot can send me
 ```ts
 import { SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { hasSafetyAlertsChannel, inCachedGuild } from '@/guards';
+import { hasSafetyAlertsChannel, inCachedGuild } from '@/guards/built-in';
 
 export const safetyAlert = defineCommand({
   command: new SlashCommandBuilder()
@@ -423,7 +423,7 @@ With `defineCommandGroup`, guards compose at two levels:
 ```ts
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { defineCommandGroup } from '@/core/sparks';
-import { hasPermission, inCachedGuild, rateLimit } from '@/guards';
+import { hasPermission, inCachedGuild, rateLimit } from '@/guards/built-in';
 
 export const channel = defineCommandGroup({
   command: new SlashCommandBuilder()
@@ -484,7 +484,7 @@ Pass the narrowed type explicitly to get type safety:
 ```ts
 import { type ChatInputCommandInteraction, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { type GuildInteraction, hasPermission, inCachedGuild } from '@/guards';
+import { type GuildInteraction, hasPermission, inCachedGuild } from '@/guards/built-in';
 
 export const kick = defineCommand<GuildInteraction<ChatInputCommandInteraction>>({
   command: new SlashCommandBuilder()
@@ -503,7 +503,7 @@ The same applies to `SubcommandHandler` when defining subcommands for `defineCom
 ```ts
 import type { ChatInputCommandInteraction } from 'discord.js';
 import type { SubcommandHandler } from '@/core/sparks';
-import { type GuildInteraction, inCachedGuild } from '@/guards';
+import { type GuildInteraction, inCachedGuild } from '@/guards/built-in';
 
 const mySubcommand: SubcommandHandler<GuildInteraction<ChatInputCommandInteraction>> = {
   guards: [inCachedGuild],
@@ -517,7 +517,7 @@ const mySubcommand: SubcommandHandler<GuildInteraction<ChatInputCommandInteracti
 
 ## Creating Custom Guards
 
-Custom guards are built using `createGuard`, `guardPass`, and `guardFail` from `@/guards`.
+Custom guards are built using `createGuard`, `guardPass`, and `guardFail` from `@/core/guards`.
 
 ### Simple Validation Guard
 
@@ -525,7 +525,7 @@ A guard that doesn't narrow the type -- it just validates a condition:
 
 ```ts
 import type { Interaction } from 'discord.js';
-import { createGuard, type Guard, guardFail, guardPass } from '@/guards';
+import { createGuard, type Guard, guardFail, guardPass } from '@/core/guards';
 
 export const duringBusinessHours: Guard<Interaction, Interaction> = createGuard(
   (interaction, _client) => {
@@ -544,7 +544,7 @@ A guard that narrows the input type, similar to `inCachedGuild`:
 
 ```ts
 import type { ChatInputCommandInteraction, GuildMember, Interaction } from 'discord.js';
-import { createGuard, type Guard, guardFail, guardPass } from '@/guards';
+import { createGuard, type Guard, guardFail, guardPass } from '@/core/guards';
 
 type InteractionWithBoostedMember = Interaction & {
   member: GuildMember & { premiumSince: Date };
@@ -581,7 +581,7 @@ For guards that take configuration, return a guard from a factory function:
 
 ```ts
 import type { Interaction } from 'discord.js';
-import { createGuard, type Guard, guardFail, guardPass } from '@/guards';
+import { createGuard, type Guard, guardFail, guardPass } from '@/core/guards';
 
 export function requireOption(name: string): Guard<Interaction, Interaction> {
   return createGuard((interaction, _client) => {

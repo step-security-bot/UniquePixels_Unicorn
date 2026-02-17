@@ -91,7 +91,7 @@ Six spark types share: `type`, `guards[]`, `action()`, `execute()`, `register(cl
 
 Composable validators returning `{ ok: true, value }` or `{ ok: false, reason }`. Chain sequentially with type narrowing.
 
-**Built-in** (import from `@/guards`): `inCachedGuild`, `hasPermission()`, `botHasPermission()`, `channelType()`, `isUser()`, `notBot`, `messageInGuild`, `rateLimit()`
+**Built-in** (import from `@/guards/built-in`): `inCachedGuild`, `hasPermission()`, `botHasPermission()`, `channelType()`, `isUser()`, `notBot`, `messageInGuild`, `rateLimit()`
 
 ### Component Lookup
 

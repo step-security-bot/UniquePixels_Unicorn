@@ -174,7 +174,7 @@ The first match wins. If no match is found, the interaction receives a generic "
 Components support the same guard system as commands. Guards run before the action and can narrow the interaction type.
 
 ```ts
-import { inCachedGuild, hasPermission } from '@/guards';
+import { inCachedGuild, hasPermission } from '@/guards/built-in';
 import { PermissionFlagsBits } from 'discord.js';
 
 export const kick = defineComponent({

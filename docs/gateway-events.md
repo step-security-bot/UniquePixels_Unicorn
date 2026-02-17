@@ -78,7 +78,7 @@ Guards work the same way as they do for commands. They run before the action and
 ```ts
 import { Events } from 'discord.js';
 import { defineGatewayEvent } from '@/core/sparks';
-import { messageInGuild, notBot } from '@/guards';
+import { messageInGuild, notBot } from '@/guards/built-in';
 
 export const messageLog = defineGatewayEvent({
   event: Events.MessageCreate,

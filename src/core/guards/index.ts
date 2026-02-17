@@ -157,5 +157,4 @@ export async function runGuards<
 }
 
 // Built-in guards are exported from @/guards/built-in
-// Import them directly: import { inCachedGuild, hasPermission } from '@/guards/built-in';
-// Or use the barrel: import { inCachedGuild, hasPermission } from '@/guards';
+// import { inCachedGuild, hasPermission } from '@/guards/built-in';
