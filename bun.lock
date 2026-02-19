@@ -23,6 +23,9 @@
   "trustedDependencies": [
     "@biomejs/biome",
   ],
+  "patchedDependencies": {
+    "@sentry/bun@10.39.0": "patches/@sentry%2Fbun@10.39.0.patch",
+  },
   "packages": {
     "@apm-js-collab/code-transformer": ["@apm-js-collab/code-transformer@0.8.2", "", {}, "sha512-YRjJjNq5KFSjDUoqu5pFUWrrsvGOxl6c3bu+uMFc9HNNptZ2rNU/TI2nLw4jnhQNtka972Ee2m3uqbvDQtPeCA=="],
 

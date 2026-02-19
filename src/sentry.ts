@@ -10,6 +10,11 @@ if (!isDev && Bun.env['sentryDSN']) {
 		enableLogs: true,
 		sendDefaultPii: true,
 		environment: Bun.env.NODE_ENV ?? 'production',
+		integrations: [
+			Sentry.pinoIntegration({
+				error: { levels: ['warn', 'error', 'fatal'] },
+			}),
+		],
 	});
 }
 

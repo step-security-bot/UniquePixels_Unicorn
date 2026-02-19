@@ -34,5 +34,8 @@
 		"discord.js": "^14.25.1",
 		"pino": "^10.3.1",
 		"zod": "^4.3.6"
+	},
+	"patchedDependencies": {
+		"@sentry/bun@10.39.0": "patches/@sentry%2Fbun@10.39.0.patch"
 	}
 }

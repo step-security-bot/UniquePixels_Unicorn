@@ -1,37 +1,12 @@
-import { describe, expect, test, mock, beforeEach } from 'bun:test';
-import pino from 'pino';
+import { describe, expect, test, mock } from 'bun:test';
 import { Events } from 'discord.js';
 import {
 	createLogger,
-	createSentryStream,
 	registerDiscordLogging,
 	serializeError,
 	MAX_SERIALIZE_DEPTH,
-	PINO_TO_SENTRY_LEVEL,
-	PINO_LEVEL_NAME,
-	ERROR_LEVELS,
-	LOG_LEVELS,
-	type SentryClient,
 	type SerializedError,
 } from './index.ts';
-
-// Create mock Sentry client for dependency injection
-const mockCaptureException = mock(() => 'event-id');
-const mockCaptureMessage = mock(() => 'event-id');
-
-const mockSentry: SentryClient = {
-	captureException: mockCaptureException,
-	captureMessage: mockCaptureMessage,
-};
-
-/** Drains the event loop so setImmediate callbacks execute. */
-function waitForImmediate(): Promise<void> {
-	return new Promise((resolve) => setImmediate(resolve));
-}
-
-// Types for test assertions
-type CaptureMessageCall = [string, { level: string; extra?: Record<string, unknown> }];
-type CaptureExceptionCall = [Error, { level: string; extra?: Record<string, unknown> }];
 
 describe('createLogger', () => {
 	test('returns a pino Logger instance', () => {
@@ -53,6 +28,25 @@ describe('createLogger', () => {
 		expect(typeof logger.warn).toBe('function');
 		expect(typeof logger.error).toBe('function');
 		expect(typeof logger.fatal).toBe('function');
+	});
+
+	test('logger writes to no-op destination without errors', () => {
+		const logger = createLogger();
+
+		expect(() => {
+			logger.info('test info');
+			logger.warn('test warn');
+			logger.error(new Error('test error'));
+			logger.flush();
+		}).not.toThrow();
+	});
+
+	test('creates dev logger with pino-pretty transport', () => {
+		const logger = createLogger({ dev: true });
+
+		expect(logger).toBeDefined();
+		expect(logger.level).toBe('debug');
+		expect(typeof logger.info).toBe('function');
 	});
 });
 
@@ -176,6 +170,21 @@ describe('serializeError', () => {
 		expect(current).toBeDefined();
 	});
 
+	test('serializes AggregateError with mixed Error and non-Error items', () => {
+		const inner = new Error('real error');
+		const aggregate = new AggregateError(
+			[inner, 'string failure', 42],
+			'mixed errors',
+		);
+		const result = serializeError(aggregate) as SerializedError;
+
+		expect(result.errors).toHaveLength(3);
+		const errors = result.errors as unknown[];
+		expect((errors[0] as SerializedError).message).toBe('real error');
+		expect(errors[1]).toBe('string failure');
+		expect(errors[2]).toBe(42);
+	});
+
 	test('preserves named error types', () => {
 		const error = new TypeError('not a function');
 		const result = serializeError(error) as SerializedError;
@@ -191,421 +200,6 @@ describe('serializeError', () => {
 
 		expect(result.type).toBe('TypeError');
 		expect(result['code']).toBe(42);
-	});
-});
-
-describe('Sentry stream integration', () => {
-	beforeEach(() => {
-		mockCaptureException.mockClear();
-		mockCaptureMessage.mockClear();
-	});
-
-	test('calls captureMessage for info level logs', async () => {
-		const stream = createSentryStream(mockSentry);
-		const logger = pino({ level: 'info' }, stream);
-		logger.info('test info message');
-
-		await waitForImmediate();
-
-		expect(mockCaptureMessage).toHaveBeenCalled();
-		const [message, options] = mockCaptureMessage.mock.calls[0] as unknown as CaptureMessageCall;
-		expect(message).toBe('test info message');
-		expect(options.level).toBe('info');
-	});
-
-	test('calls captureMessage for warn level logs without error', async () => {
-		const stream = createSentryStream(mockSentry);
-		const logger = pino({ level: 'info' }, stream);
-		logger.warn('test warning message');
-
-		await waitForImmediate();
-
-		expect(mockCaptureMessage).toHaveBeenCalled();
-		const [message, options] = mockCaptureMessage.mock.calls[0] as unknown as CaptureMessageCall;
-		expect(message).toBe('test warning message');
-		expect(options.level).toBe('warning');
-	});
-
-	test('calls captureException for error level logs with Error object', async () => {
-		const stream = createSentryStream(mockSentry);
-		const logger = pino({ level: 'info' }, stream);
-		const testError = new Error('test error');
-		logger.error(testError);
-
-		await waitForImmediate();
-
-		expect(mockCaptureException).toHaveBeenCalled();
-		const [error, options] = mockCaptureException.mock.calls[0] as unknown as CaptureExceptionCall;
-		expect(error.message).toBe('test error');
-		expect(options.level).toBe('error');
-	});
-
-	test('calls captureException for fatal level logs with Error object', async () => {
-		const stream = createSentryStream(mockSentry);
-		const logger = pino({ level: 'info' }, stream);
-		const testError = new Error('fatal error');
-		logger.fatal(testError);
-
-		await waitForImmediate();
-
-		expect(mockCaptureException).toHaveBeenCalled();
-		const [error, options] = mockCaptureException.mock.calls[0] as unknown as CaptureExceptionCall;
-		expect(error.message).toBe('fatal error');
-		expect(options.level).toBe('fatal');
-	});
-
-	test('includes extra fields in Sentry context', async () => {
-		const stream = createSentryStream(mockSentry);
-		const logger = pino({ level: 'info' }, stream);
-		logger.info({ userId: 123, action: 'login' }, 'user logged in');
-
-		await waitForImmediate();
-
-		expect(mockCaptureMessage).toHaveBeenCalled();
-		const [, options] = mockCaptureMessage.mock.calls[0] as unknown as CaptureMessageCall;
-		expect(options.extra?.['userId']).toBe(123);
-		expect(options.extra?.['action']).toBe('login');
-	});
-
-	test('does not call Sentry for debug level logs', async () => {
-		const stream = createSentryStream(mockSentry);
-		const logger = pino({ level: 'debug' }, stream);
-		logger.debug('debug message');
-
-		await waitForImmediate();
-
-		// Debug is not in LOG_LEVELS, so captureMessage should not be called
-		expect(mockCaptureMessage).not.toHaveBeenCalled();
-		expect(mockCaptureException).not.toHaveBeenCalled();
-	});
-
-	test('does not call Sentry for trace level logs', async () => {
-		const stream = createSentryStream(mockSentry);
-		const logger = pino({ level: 'trace' }, stream);
-		logger.trace('trace message');
-
-		await waitForImmediate();
-
-		expect(mockCaptureMessage).not.toHaveBeenCalled();
-		expect(mockCaptureException).not.toHaveBeenCalled();
-	});
-
-	test('captures exception from error key (not just err)', async () => {
-		const stream = createSentryStream(mockSentry);
-
-		const record = {
-			level: 50,
-			time: Date.now(),
-			pid: 1,
-			hostname: 'test',
-			msg: 'something failed',
-			error: { type: 'TypeError', message: 'cannot read property' },
-		};
-
-		await new Promise<void>((resolve, reject) => {
-			stream.write(JSON.stringify(record) + '\n', (err) => (err ? reject(err) : resolve()));
-		});
-		await waitForImmediate();
-
-		expect(mockCaptureException).toHaveBeenCalled();
-		const [error] = mockCaptureException.mock.calls[0] as unknown as CaptureExceptionCall;
-		expect(error.message).toBe('cannot read property');
-		expect(error.name).toBe('TypeError');
-	});
-
-	test('includes custom error properties in Sentry extra context', async () => {
-		const stream = createSentryStream(mockSentry);
-		const serializers = { err: serializeError, error: serializeError };
-		const logger = pino({ level: 'info', serializers }, stream);
-		const testError = new Error('discord error');
-		Object.assign(testError, { code: 50013, status: 403, method: 'PATCH' });
-		logger.error({ err: testError }, 'API call failed');
-
-		await waitForImmediate();
-
-		expect(mockCaptureException).toHaveBeenCalled();
-		const [, options] = mockCaptureException.mock.calls[0] as unknown as CaptureExceptionCall;
-		expect(options.extra?.['code']).toBe(50013);
-		expect(options.extra?.['status']).toBe(403);
-		expect(options.extra?.['method']).toBe('PATCH');
-		expect(options.extra?.['originalMessage']).toBe('API call failed');
-	});
-
-	test('includes cause and errors in Sentry extra context', async () => {
-		const stream = createSentryStream(mockSentry);
-
-		const record = {
-			level: 50,
-			time: Date.now(),
-			pid: 1,
-			hostname: 'test',
-			msg: 'aggregate failure',
-			err: {
-				type: 'AggregateError',
-				message: 'Received one or more errors',
-				cause: { type: 'Error', message: 'root cause' },
-				errors: [
-					{ type: 'Error', message: 'sub-error 1' },
-					{ type: 'Error', message: 'sub-error 2' },
-				],
-			},
-		};
-
-		await new Promise<void>((resolve, reject) => {
-			stream.write(JSON.stringify(record) + '\n', (err) => (err ? reject(err) : resolve()));
-		});
-		await waitForImmediate();
-
-		expect(mockCaptureException).toHaveBeenCalled();
-		const [, options] = mockCaptureException.mock.calls[0] as unknown as CaptureExceptionCall;
-		expect(options.extra?.['cause']).toEqual({ type: 'Error', message: 'root cause' });
-		expect(options.extra?.['errors']).toHaveLength(2);
-	});
-
-	test('prefers err key over error key when both present', async () => {
-		const stream = createSentryStream(mockSentry);
-
-		const record = {
-			level: 50,
-			time: Date.now(),
-			pid: 1,
-			hostname: 'test',
-			msg: 'dual keys',
-			err: { type: 'Error', message: 'from err' },
-			error: { type: 'Error', message: 'from error' },
-		};
-
-		await new Promise<void>((resolve, reject) => {
-			stream.write(JSON.stringify(record) + '\n', (err) => (err ? reject(err) : resolve()));
-		});
-		await waitForImmediate();
-
-		expect(mockCaptureException).toHaveBeenCalled();
-		const [error] = mockCaptureException.mock.calls[0] as unknown as CaptureExceptionCall;
-		expect(error.message).toBe('from err');
-	});
-});
-
-describe('level mappings', () => {
-	beforeEach(() => {
-		mockCaptureException.mockClear();
-		mockCaptureMessage.mockClear();
-	});
-
-	test('maps pino warn (40) to Sentry warning', async () => {
-		const stream = createSentryStream(mockSentry);
-		const logger = pino({ level: 'info' }, stream);
-		logger.warn('warning test');
-
-		await waitForImmediate();
-
-		const [, options] = mockCaptureMessage.mock.calls[0] as unknown as CaptureMessageCall;
-		expect(options.level).toBe('warning');
-	});
-
-	test('maps pino error (50) to Sentry error', async () => {
-		const stream = createSentryStream(mockSentry);
-		const logger = pino({ level: 'info' }, stream);
-		logger.error('error test');
-
-		await waitForImmediate();
-
-		const [, options] = mockCaptureMessage.mock.calls[0] as unknown as CaptureMessageCall;
-		expect(options.level).toBe('error');
-	});
-
-	test('maps pino fatal (60) to Sentry fatal', async () => {
-		const stream = createSentryStream(mockSentry);
-		const logger = pino({ level: 'info' }, stream);
-		logger.fatal('fatal test');
-
-		await waitForImmediate();
-
-		const [, options] = mockCaptureMessage.mock.calls[0] as unknown as CaptureMessageCall;
-		expect(options.level).toBe('fatal');
-	});
-
-	test('PINO_TO_SENTRY_LEVEL has correct mappings', () => {
-		expect(PINO_TO_SENTRY_LEVEL[10]).toBe('debug');
-		expect(PINO_TO_SENTRY_LEVEL[20]).toBe('debug');
-		expect(PINO_TO_SENTRY_LEVEL[30]).toBe('info');
-		expect(PINO_TO_SENTRY_LEVEL[40]).toBe('warning');
-		expect(PINO_TO_SENTRY_LEVEL[50]).toBe('error');
-		expect(PINO_TO_SENTRY_LEVEL[60]).toBe('fatal');
-	});
-
-	test('PINO_LEVEL_NAME has correct mappings', () => {
-		expect(PINO_LEVEL_NAME[10]).toBe('trace');
-		expect(PINO_LEVEL_NAME[20]).toBe('debug');
-		expect(PINO_LEVEL_NAME[30]).toBe('info');
-		expect(PINO_LEVEL_NAME[40]).toBe('warn');
-		expect(PINO_LEVEL_NAME[50]).toBe('error');
-		expect(PINO_LEVEL_NAME[60]).toBe('fatal');
-	});
-
-	test('ERROR_LEVELS contains correct levels', () => {
-		expect(ERROR_LEVELS.has('warn')).toBe(true);
-		expect(ERROR_LEVELS.has('error')).toBe(true);
-		expect(ERROR_LEVELS.has('fatal')).toBe(true);
-		expect(ERROR_LEVELS.has('info')).toBe(false);
-		expect(ERROR_LEVELS.has('debug')).toBe(false);
-	});
-
-	test('LOG_LEVELS contains correct levels', () => {
-		expect(LOG_LEVELS.has('info')).toBe(true);
-		expect(LOG_LEVELS.has('warn')).toBe(true);
-		expect(LOG_LEVELS.has('error')).toBe(true);
-		expect(LOG_LEVELS.has('fatal')).toBe(true);
-		expect(LOG_LEVELS.has('debug')).toBe(false);
-		expect(LOG_LEVELS.has('trace')).toBe(false);
-	});
-});
-
-describe('stream edge cases', () => {
-	beforeEach(() => {
-		mockCaptureException.mockClear();
-		mockCaptureMessage.mockClear();
-	});
-
-	test('handles empty lines gracefully', async () => {
-		const stream = createSentryStream(mockSentry);
-		const mockStdoutWrite = mock(() => true);
-		const originalWrite = process.stdout.write;
-		process.stdout.write = mockStdoutWrite as typeof process.stdout.write;
-
-		try {
-			// Write empty/whitespace content
-			await new Promise<void>((resolve, reject) => {
-				stream.write('\n', (err) => (err ? reject(err) : resolve()));
-			});
-			await new Promise<void>((resolve, reject) => {
-				stream.write('   \n', (err) => (err ? reject(err) : resolve()));
-			});
-			await new Promise<void>((resolve, reject) => {
-				stream.write('', (err) => (err ? reject(err) : resolve()));
-			});
-
-			await waitForImmediate();
-
-			// Should not call Sentry for empty lines
-			expect(mockCaptureMessage).not.toHaveBeenCalled();
-			expect(mockCaptureException).not.toHaveBeenCalled();
-		} finally {
-			process.stdout.write = originalWrite;
-		}
-	});
-
-	test('handles malformed JSON gracefully', async () => {
-		const stream = createSentryStream(mockSentry);
-		const mockStdoutWrite = mock(() => true);
-		const originalWrite = process.stdout.write;
-		process.stdout.write = mockStdoutWrite as typeof process.stdout.write;
-
-		try {
-			// Write invalid JSON
-			await new Promise<void>((resolve, reject) => {
-				stream.write('not valid json\n', (err) => (err ? reject(err) : resolve()));
-			});
-
-			await waitForImmediate();
-
-			// Should not throw and should write to stdout as fallback
-			expect(mockCaptureMessage).not.toHaveBeenCalled();
-			expect(mockCaptureException).not.toHaveBeenCalled();
-			expect(mockStdoutWrite).toHaveBeenCalled();
-		} finally {
-			process.stdout.write = originalWrite;
-		}
-	});
-
-	test('handles error without stack trace', async () => {
-		const stream = createSentryStream(mockSentry);
-		const mockStdoutWrite = mock(() => true);
-		const originalWrite = process.stdout.write;
-		process.stdout.write = mockStdoutWrite as typeof process.stdout.write;
-
-		try {
-			const record = {
-				level: 50,
-				time: Date.now(),
-				pid: 1,
-				hostname: 'test',
-				msg: 'error without stack',
-				err: { type: 'Error', message: 'no stack error' }, // no stack property
-			};
-
-			await new Promise<void>((resolve, reject) => {
-				stream.write(JSON.stringify(record) + '\n', (err) => (err ? reject(err) : resolve()));
-			});
-
-			await waitForImmediate();
-
-			expect(mockCaptureException).toHaveBeenCalled();
-			const [error] = mockCaptureException.mock.calls[0] as unknown as CaptureExceptionCall;
-			expect(error.message).toBe('no stack error');
-			expect(error.name).toBe('Error');
-		} finally {
-			process.stdout.write = originalWrite;
-		}
-	});
-
-	test('uses fallback message when msg is undefined', async () => {
-		const stream = createSentryStream(mockSentry);
-		const mockStdoutWrite = mock(() => true);
-		const originalWrite = process.stdout.write;
-		process.stdout.write = mockStdoutWrite as typeof process.stdout.write;
-
-		try {
-			const record = {
-				level: 30, // info
-				time: Date.now(),
-				pid: 1,
-				hostname: 'test',
-				// no msg property
-			};
-
-			await new Promise<void>((resolve, reject) => {
-				stream.write(JSON.stringify(record) + '\n', (err) => (err ? reject(err) : resolve()));
-			});
-
-			await waitForImmediate();
-
-			expect(mockCaptureMessage).toHaveBeenCalled();
-			const [message] = mockCaptureMessage.mock.calls[0] as unknown as CaptureMessageCall;
-			expect(message).toBe('Log message');
-		} finally {
-			process.stdout.write = originalWrite;
-		}
-	});
-
-	test('handles unknown level numbers with fallback', async () => {
-		const stream = createSentryStream(mockSentry);
-		const mockStdoutWrite = mock(() => true);
-		const originalWrite = process.stdout.write;
-		process.stdout.write = mockStdoutWrite as typeof process.stdout.write;
-
-		try {
-			const record = {
-				level: 99, // unknown level
-				time: Date.now(),
-				pid: 1,
-				hostname: 'test',
-				msg: 'unknown level message',
-			};
-
-			await new Promise<void>((resolve, reject) => {
-				stream.write(JSON.stringify(record) + '\n', (err) => (err ? reject(err) : resolve()));
-			});
-
-			await waitForImmediate();
-
-			// Unknown level defaults to 'info' which is in LOG_LEVELS
-			expect(mockCaptureMessage).toHaveBeenCalled();
-			const [, options] = mockCaptureMessage.mock.calls[0] as unknown as CaptureMessageCall;
-			expect(options.level).toBe('info');
-		} finally {
-			process.stdout.write = originalWrite;
-		}
 	});
 });
 
