@@ -86,6 +86,55 @@ export const search = defineCommandWithAutocomplete({
 });
 ```
 
+## Context Menu Commands
+
+Context menu commands (right-click on a user or message) are registered and routed through the same `client.commands` map as slash commands. Use `defineCommand` with a `ContextMenuCommandBuilder`:
+
+```ts
+import {
+  ApplicationCommandType,
+  ContextMenuCommandBuilder,
+  MessageFlags,
+  type MessageContextMenuCommandInteraction,
+} from 'discord.js';
+import { defineCommand } from '@/core/sparks';
+
+export const reportMessage = defineCommand<MessageContextMenuCommandInteraction>({
+  command: new ContextMenuCommandBuilder()
+    .setName('Report Message')
+    .setType(ApplicationCommandType.Message),
+  action: async (interaction, client) => {
+    const message = interaction.targetMessage;
+    await interaction.reply({ content: `Reported message ${message.id}`, flags: MessageFlags.Ephemeral });
+  },
+});
+```
+
+> [!NOTE]
+> Pass the specific context menu interaction type as a generic to `defineCommand` so the `action` receives the correct type with access to `targetMessage` or `targetUser`. The `execute()` method accepts `CommandInteraction` (the common base), so no unsafe casts are needed.
+
+### User Commands
+
+```ts
+import {
+  ApplicationCommandType,
+  ContextMenuCommandBuilder,
+  MessageFlags,
+  type UserContextMenuCommandInteraction,
+} from 'discord.js';
+import { defineCommand } from '@/core/sparks';
+
+export const userInfo = defineCommand<UserContextMenuCommandInteraction>({
+  command: new ContextMenuCommandBuilder()
+    .setName('User Info')
+    .setType(ApplicationCommandType.User),
+  action: async (interaction, client) => {
+    const user = interaction.targetUser;
+    await interaction.reply({ content: `User: ${user.tag}`, flags: MessageFlags.Ephemeral });
+  },
+});
+```
+
 ## Command Groups
 
 Use `defineCommandGroup` when a slash command is composed of subcommands, subcommand groups, or both. This is the recommended pattern for any command with nesting.

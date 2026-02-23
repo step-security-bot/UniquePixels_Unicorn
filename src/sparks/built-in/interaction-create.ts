@@ -1,15 +1,14 @@
 import {
 	type AutocompleteInteraction,
-	type ChatInputCommandInteraction,
+	type CommandInteraction,
 	Events,
 	type Interaction,
-	type MessageComponentInteraction,
 	MessageFlags,
-	type ModalSubmitInteraction,
 } from 'discord.js';
 import type { UnicornClient } from '@/core/client';
 import { attempt, isError } from '@/core/lib/attempt';
 import {
+	type AnyComponentInteraction,
 	defineGatewayEvent,
 	findComponentSpark,
 	type GatewayEventSpark,
@@ -17,18 +16,19 @@ import {
 } from '@/core/sparks';
 
 /**
- * Routes slash command interactions to the appropriate CommandSpark.
+ * Routes slash command and context menu interactions to the appropriate CommandSpark.
  */
 async function handleCommand(
-	interaction: ChatInputCommandInteraction,
+	interaction: CommandInteraction,
 	client: UnicornClient,
+	label: string,
 ): Promise<void> {
 	const spark = client.commands.get(interaction.commandName);
 
 	if (!spark) {
 		client.logger.warn(
 			{ command: interaction.commandName, user: interaction.user.id },
-			'Received interaction for unknown command',
+			`Received interaction for unknown ${label}`,
 		);
 
 		await interaction.reply({
@@ -38,10 +38,8 @@ async function handleCommand(
 		return;
 	}
 
-	// Execute the spark (guards + action)
 	const result = await spark.execute(interaction, client);
 
-	// If guards failed and interaction hasn't been replied to, send error
 	if (!(result.ok || interaction.replied || interaction.deferred)) {
 		await interaction.reply({
 			content: result.reason,
@@ -79,11 +77,13 @@ async function handleAutocomplete(
 }
 
 /**
- * Routes message component interactions (buttons, selects) to ComponentSpark.
+ * Routes component (button/select) and modal submit interactions to ComponentSpark.
  */
 async function handleComponent(
-	interaction: MessageComponentInteraction,
+	interaction: AnyComponentInteraction,
 	client: UnicornClient,
+	label: string,
+	notFoundMessage: string,
 ): Promise<void> {
 	const spark = findComponentSpark(
 		client.components,
@@ -95,60 +95,16 @@ async function handleComponent(
 	if (!spark) {
 		client.logger.debug(
 			{ customId: interaction.customId, user: interaction.user.id },
-			'Received interaction for unknown component',
+			`Received interaction for unknown ${label}`,
 		);
 
 		await interaction.reply({
-			content: 'This button/menu is no longer available.',
+			content: notFoundMessage,
 			flags: MessageFlags.Ephemeral,
 		});
 		return;
 	}
 
-	// Execute the spark with the component interaction
-	// MessageComponentInteraction needs cast to the specific union type expected by execute()
-	const result = await spark.execute(
-		interaction as Parameters<typeof spark.execute>[0],
-		client,
-	);
-
-	if (!(result.ok || interaction.replied || interaction.deferred)) {
-		await interaction.reply({
-			content: result.reason,
-			flags: MessageFlags.Ephemeral,
-		});
-	}
-}
-
-/**
- * Routes modal submit interactions to ComponentSpark.
- */
-async function handleModal(
-	interaction: ModalSubmitInteraction,
-	client: UnicornClient,
-): Promise<void> {
-	const spark = findComponentSpark(
-		client.components,
-		client.componentPatterns,
-		interaction.customId,
-		client.logger,
-	);
-
-	if (!spark) {
-		client.logger.debug(
-			{ customId: interaction.customId, user: interaction.user.id },
-			'Received modal submit for unknown component',
-		);
-
-		await interaction.reply({
-			content: 'This form is no longer available.',
-			flags: MessageFlags.Ephemeral,
-		});
-		return;
-	}
-
-	// Execute the spark with the modal interaction
-	// Note: BaseComponentSpark.execute accepts AnyComponentInteraction which includes ModalSubmitInteraction
 	const result = await spark.execute(interaction, client);
 
 	if (!(result.ok || interaction.replied || interaction.deferred)) {
@@ -186,6 +142,7 @@ async function safeHandle(
  * Routing logic:
  * - Chat commands → CommandSpark by command name
  * - Autocomplete → CommandSparkWithAutocomplete.autocomplete()
+ * - Context menus → CommandSpark by command name (user/message commands)
  * - Buttons/Selects → ComponentSpark by customId (supports patterns)
  * - Modal submits → ComponentSpark by customId (supports patterns)
  */
@@ -198,7 +155,7 @@ export const interactionCreate: GatewayEventSpark<
 		// Route based on interaction type, wrapped in safe error handling
 		if (interaction.isChatInputCommand()) {
 			await safeHandle(
-				() => handleCommand(interaction, client),
+				() => handleCommand(interaction, client, 'command'),
 				`command:${interaction.commandName}`,
 				client,
 			);
@@ -208,15 +165,33 @@ export const interactionCreate: GatewayEventSpark<
 				`autocomplete:${interaction.commandName}`,
 				client,
 			);
+		} else if (interaction.isContextMenuCommand()) {
+			await safeHandle(
+				() => handleCommand(interaction, client, 'context menu command'),
+				`context-menu:${interaction.commandName}`,
+				client,
+			);
 		} else if (interaction.isMessageComponent()) {
 			await safeHandle(
-				() => handleComponent(interaction, client),
+				() =>
+					handleComponent(
+						interaction,
+						client,
+						'component',
+						'This button/menu is no longer available.',
+					),
 				`component:${interaction.customId}`,
 				client,
 			);
 		} else if (interaction.isModalSubmit()) {
 			await safeHandle(
-				() => handleModal(interaction, client),
+				() =>
+					handleComponent(
+						interaction,
+						client,
+						'modal',
+						'This form is no longer available.',
+					),
 				`modal:${interaction.customId}`,
 				client,
 			);

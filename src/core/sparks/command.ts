@@ -1,6 +1,7 @@
 import type {
 	AutocompleteInteraction,
 	ChatInputCommandInteraction,
+	CommandInteraction,
 	ContextMenuCommandBuilder,
 	SlashCommandBuilder,
 	SlashCommandSubcommandsOnlyBuilder,
@@ -32,7 +33,7 @@ export type CommandAction<T = ChatInputCommandInteraction> = (
  * Options for defining a command spark.
  */
 export interface CommandOptions<
-	TGuarded extends ChatInputCommandInteraction = ChatInputCommandInteraction,
+	TGuarded extends CommandInteraction = ChatInputCommandInteraction,
 > {
 	/** The slash command builder */
 	command: CommandBuilder;
@@ -69,9 +70,15 @@ export interface BaseCommandSpark {
 		client: UnicornClient,
 	) => void | Promise<void>;
 
-	/** Execute the command (runs guards then action) */
+	/**
+	 * Execute the command (runs guards then action).
+	 *
+	 * Accepts `CommandInteraction` (the common base of `ChatInputCommandInteraction`
+	 * and `ContextMenuCommandInteraction`). Callers must ensure the interaction type
+	 * matches the command builder — the router guarantees this via unique command names.
+	 */
 	execute(
-		interaction: ChatInputCommandInteraction,
+		interaction: CommandInteraction,
 		client: UnicornClient,
 	): Promise<GuardResult<unknown>>;
 
@@ -89,7 +96,7 @@ export interface BaseCommandSpark {
  * A command spark instance with typed guards and action.
  */
 export interface CommandSpark<
-	TGuarded extends ChatInputCommandInteraction = ChatInputCommandInteraction,
+	TGuarded extends CommandInteraction = ChatInputCommandInteraction,
 > {
 	readonly type: 'command';
 	readonly id: string;
@@ -102,9 +109,15 @@ export interface CommandSpark<
 		client: UnicornClient,
 	) => void | Promise<void>;
 
-	/** Execute the command (runs guards then action) */
+	/**
+	 * Execute the command (runs guards then action).
+	 *
+	 * Accepts `CommandInteraction` (the common base of `ChatInputCommandInteraction`
+	 * and `ContextMenuCommandInteraction`). The action receives `TGuarded` after
+	 * runtime validation that the interaction type matches the command builder.
+	 */
 	execute(
-		interaction: ChatInputCommandInteraction,
+		interaction: CommandInteraction,
 		client: UnicornClient,
 	): Promise<GuardResult<TGuarded>>;
 
@@ -147,7 +160,7 @@ export interface CommandSpark<
  * ```
  */
 export function defineCommand<
-	TGuarded extends ChatInputCommandInteraction = ChatInputCommandInteraction,
+	TGuarded extends CommandInteraction = ChatInputCommandInteraction,
 >(options: CommandOptions<TGuarded>): CommandSpark<TGuarded> {
 	const { command, guards = [], action } = options;
 
@@ -159,9 +172,24 @@ export function defineCommand<
 		action,
 
 		async execute(
-			interaction: ChatInputCommandInteraction,
+			interaction: CommandInteraction,
 			client: UnicornClient,
 		): Promise<GuardResult<TGuarded>> {
+			// Validate interaction type matches command builder.
+			// 'type' is present on ContextMenuCommandBuilder but not SlashCommandBuilder.
+			// Optional chaining safely skips the check for test mocks lacking these methods.
+			const isContextMenuBuilder = 'type' in command;
+			const isContextMenuInteraction =
+				interaction.isContextMenuCommand?.() === true;
+
+			if (isContextMenuBuilder !== isContextMenuInteraction) {
+				client.logger.warn(
+					{ command: command.name },
+					'Interaction type does not match command registration',
+				);
+				return { ok: false, reason: 'Interaction type mismatch.' };
+			}
+
 			// Run guards
 			const guardResult = await runGuards(
 				guards as readonly Guard<unknown, unknown>[],

@@ -4,6 +4,8 @@
 
 Always use Context7 MCP when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
 
+When creating or modifying sparks, guards, or spark tests, read `.claude/spark-reference.md` and `.claude/testing-reference.md` first for APIs, types, patterns, and examples. Do not read core source files for information already covered in those references.
+
 ## Project Overview
 
 Unicorn is a Discord bot framework built on Discord.js and TypeScript, designed to run on Bun. It uses a "Spark" system for modular command/event handling with composable Guards for validation.

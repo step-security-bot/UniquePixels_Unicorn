@@ -2,6 +2,7 @@ import { describe, expect, mock, test } from 'bun:test';
 import type {
 	AutocompleteInteraction,
 	ChatInputCommandInteraction,
+	CommandInteraction,
 	SlashCommandBuilder,
 } from 'discord.js';
 import { createMockClient } from '@/core/lib/test-helpers';
@@ -38,6 +39,7 @@ function createMockInteraction(
 		replied: false,
 		deferred: false,
 		reply: mock(async () => {}),
+		isChatInputCommand: () => true,
 	} as unknown as ChatInputCommandInteraction;
 }
 
@@ -802,6 +804,36 @@ describe('CommandGroupSpark autocomplete', () => {
 			// Should not throw
 			await spark.executeAutocomplete!(interaction, client);
 		});
+	});
+});
+
+describe('runtime type guard', () => {
+	test('rejects non-ChatInput interactions', async () => {
+		const spark = defineCommandGroup({
+			command: createMockCommand('manage'),
+			subcommands: {
+				list: { action: async () => {} },
+			},
+		});
+
+		const client = createMockClient();
+		const interaction = {
+			commandName: 'manage',
+			user: { id: '123456789012345678' },
+			replied: false,
+			deferred: false,
+			reply: mock(async () => {}),
+			isChatInputCommand: () => false,
+		} as unknown as CommandInteraction;
+
+		const result = await spark.execute(interaction, client);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.reason).toBe(
+				'Command groups only support slash commands.',
+			);
+		}
 	});
 });
 

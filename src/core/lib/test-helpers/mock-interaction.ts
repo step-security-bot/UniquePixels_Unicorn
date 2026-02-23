@@ -174,6 +174,8 @@ export function createMockBaseInteraction(
 		...overrides,
 		isChatInputCommand: overrides['isChatInputCommand'] ?? mock(() => false),
 		isAutocomplete: overrides['isAutocomplete'] ?? mock(() => false),
+		isContextMenuCommand:
+			overrides['isContextMenuCommand'] ?? mock(() => false),
 		isMessageComponent: overrides['isMessageComponent'] ?? mock(() => false),
 		isModalSubmit: overrides['isModalSubmit'] ?? mock(() => false),
 		user: overrides['user'] ?? { id: '123456789012345678' },

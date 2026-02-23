@@ -1,6 +1,7 @@
 import type {
 	AutocompleteInteraction,
 	ChatInputCommandInteraction,
+	CommandInteraction,
 } from 'discord.js';
 import type { UnicornClient } from '@/core/client';
 import type { Guard, GuardResult } from '@/core/guards';
@@ -63,10 +64,7 @@ function findSubcommandHandler<TGuarded extends ChatInputCommandInteraction>(
 	if (group && subcommand) {
 		return groups[group]?.[subcommand];
 	}
-	if (subcommand) {
-		return subcommands[subcommand];
-	}
-	return;
+	return subcommand ? subcommands[subcommand] : undefined;
 }
 
 /**
@@ -153,6 +151,47 @@ export function defineCommandGroup<
 		(h) => h.autocomplete !== undefined,
 	);
 
+	/** Runs subcommand-specific guards then executes the action. */
+	async function runSubcommand(
+		handler: SubcommandHandler<TGuarded>,
+		narrowed: TGuarded,
+		client: UnicornClient,
+		routeKey: string,
+	): Promise<GuardResult<TGuarded>> {
+		let finalNarrowed = narrowed;
+
+		if (handler.guards && handler.guards.length > 0) {
+			const subGuardResult = await runGuards(
+				handler.guards as readonly Guard<unknown, unknown>[],
+				narrowed,
+				client,
+			);
+
+			if (!subGuardResult.ok) {
+				client.logger.debug(
+					{ command: routeKey, reason: subGuardResult.reason },
+					'Subcommand guard failed',
+				);
+				return subGuardResult as GuardResult<TGuarded>;
+			}
+
+			finalNarrowed = subGuardResult.value as TGuarded;
+		}
+
+		const actionResult = await attempt(() =>
+			handler.action(finalNarrowed, client),
+		);
+
+		if (isError(actionResult)) {
+			client.logger.error(
+				{ err: actionResult.error, command: routeKey },
+				'Subcommand action failed',
+			);
+		}
+
+		return { ok: true, value: finalNarrowed };
+	}
+
 	async function resolveAndRunAutocomplete(
 		interaction: AutocompleteInteraction,
 		client: UnicornClient,
@@ -204,9 +243,17 @@ export function defineCommandGroup<
 			: {}),
 
 		async execute(
-			interaction: ChatInputCommandInteraction,
+			interaction: CommandInteraction,
 			client: UnicornClient,
 		): Promise<GuardResult<TGuarded>> {
+			// Command groups only support slash commands (subcommands don't exist for context menus)
+			if (!interaction.isChatInputCommand()) {
+				return {
+					ok: false,
+					reason: 'Command groups only support slash commands.',
+				} as GuardResult<TGuarded>;
+			}
+
 			// 1. Run top-level guards
 			const guardResult = await runGuards(
 				guards as readonly Guard<unknown, unknown>[],
@@ -249,36 +296,15 @@ export function defineCommandGroup<
 				? `${command.name} ${group} ${subcommand}`
 				: `${command.name} ${subcommand}`;
 
-			// 3. Run subcommand-specific guards
-			if (handler.guards && handler.guards.length > 0) {
-				const subGuardResult = await runGuards(
-					handler.guards as readonly Guard<unknown, unknown>[],
-					narrowed,
-					client,
-				);
-
-				if (!subGuardResult.ok) {
-					client.logger.debug(
-						{ command: routeKey, reason: subGuardResult.reason },
-						'Subcommand guard failed',
-					);
-					return subGuardResult as GuardResult<TGuarded>;
-				}
-			}
-
-			// 4. Execute subcommand action
-			const actionResult = await attempt(() =>
-				handler.action(narrowed, client),
+			// 3. Run subcommand guards + action
+			const subResult = await runSubcommand(
+				handler,
+				narrowed,
+				client,
+				routeKey,
 			);
 
-			if (isError(actionResult)) {
-				client.logger.error(
-					{ err: actionResult.error, command: routeKey },
-					'Subcommand action failed',
-				);
-			}
-
-			return guardResult as GuardResult<TGuarded>;
+			return subResult;
 		},
 
 		async executeAutocomplete(

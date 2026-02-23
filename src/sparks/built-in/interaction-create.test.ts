@@ -83,6 +83,18 @@ function createModalInteraction(
 	});
 }
 
+/** Creates a mock context menu command interaction. */
+function createContextMenuInteraction(
+	commandName: string,
+	overrides: Record<string, unknown> = {},
+): Interaction {
+	return createMockBaseInteraction({
+		isContextMenuCommand: mock(() => true),
+		commandName,
+		...overrides,
+	});
+}
+
 /** Extracts the reply mock from an interaction. */
 function getReplyMock(interaction: Interaction) {
 	return (interaction as unknown as { reply: ReturnType<typeof mock> })
@@ -350,6 +362,99 @@ describe('interactionCreate', () => {
 			await interactionCreate.execute([interaction], client);
 
 			expect(getReplyMock(interaction)).not.toHaveBeenCalled();
+		});
+	});
+
+	describe('context menu routing', () => {
+		test('routes context menu command to matching command spark', async () => {
+			const client = createMockClient();
+			const spark = createMockCommandSpark();
+			client.commands.set('Report Message', spark);
+
+			const interaction = createContextMenuInteraction('Report Message');
+			await interactionCreate.execute([interaction], client);
+
+			expect(spark.execute).toHaveBeenCalledTimes(1);
+		});
+
+		test('replies with "not available" for unknown context menu commands', async () => {
+			const client = createMockClient();
+			const interaction = createContextMenuInteraction('Unknown');
+			await interactionCreate.execute([interaction], client);
+
+			expectEphemeralReply(interaction, 'This command is not available.');
+		});
+
+		test('logs warning for unknown context menu commands', async () => {
+			const client = createMockClient();
+			const interaction = createContextMenuInteraction('Unknown');
+			await interactionCreate.execute([interaction], client);
+
+			expect(client.logger.warn).toHaveBeenCalledWith(
+				expect.objectContaining({ command: 'Unknown' }),
+				'Received interaction for unknown context menu command',
+			);
+		});
+
+		test('auto-replies guard failure reason when not yet replied', async () => {
+			const client = createMockClient();
+			const spark = createMockCommandSpark({
+				execute: failingExecute('Missing permissions'),
+			});
+			client.commands.set('Ban User', spark);
+
+			const interaction = createContextMenuInteraction('Ban User');
+			await interactionCreate.execute([interaction], client);
+
+			expectEphemeralReply(interaction, 'Missing permissions');
+		});
+
+		test('does NOT auto-reply guard failure when already replied', async () => {
+			const client = createMockClient();
+			const spark = createMockCommandSpark({
+				execute: failingExecute('Denied'),
+			});
+			client.commands.set('Ban User', spark);
+
+			const interaction = createContextMenuInteraction('Ban User', {
+				replied: true,
+			});
+			await interactionCreate.execute([interaction], client);
+
+			expect(getReplyMock(interaction)).not.toHaveBeenCalled();
+		});
+
+		test('does NOT auto-reply guard failure when already deferred', async () => {
+			const client = createMockClient();
+			const spark = createMockCommandSpark({
+				execute: failingExecute('Denied'),
+			});
+			client.commands.set('Ban User', spark);
+
+			const interaction = createContextMenuInteraction('Ban User', {
+				deferred: true,
+			});
+			await interactionCreate.execute([interaction], client);
+
+			expect(getReplyMock(interaction)).not.toHaveBeenCalled();
+		});
+
+		test('logs error when handler throws', async () => {
+			const client = createMockClient();
+			const spark = createMockCommandSpark({
+				execute: mock(async () => {
+					throw new Error('handler broke');
+				}),
+			});
+			client.commands.set('Report Message', spark);
+
+			const interaction = createContextMenuInteraction('Report Message');
+			await interactionCreate.execute([interaction], client);
+
+			expect(client.logger.error).toHaveBeenCalledWith(
+				expect.objectContaining({ context: 'context-menu:Report Message' }),
+				'Interaction handler failed',
+			);
 		});
 	});
 

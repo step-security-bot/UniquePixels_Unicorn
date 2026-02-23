@@ -1,5 +1,10 @@
 import { describe, expect, mock, test } from 'bun:test';
-import type { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
+import {
+	ApplicationCommandType,
+	type ChatInputCommandInteraction,
+	type ContextMenuCommandInteraction,
+	type SlashCommandBuilder,
+} from 'discord.js';
 import type { Guard } from '@/core/guards';
 import {
 	createMockAutocompleteInteraction,
@@ -18,6 +23,25 @@ import {
 
 function createMockCommand(name: string) {
 	return { name } as unknown as SlashCommandBuilder;
+}
+
+/** Creates a mock ContextMenuCommandBuilder (has `type` property). */
+function createMockContextMenuCommand(name: string) {
+	return { name, type: ApplicationCommandType.Message } as unknown as SlashCommandBuilder;
+}
+
+/** Creates a mock context menu interaction with targetMessage. */
+function createMockContextMenuInteraction() {
+	return {
+		commandName: 'Report Message',
+		user: { id: '123456789012345678' },
+		replied: false,
+		deferred: false,
+		reply: mock(async () => {}),
+		isContextMenuCommand: () => true,
+		targetId: '999888777666555444',
+		targetMessage: { id: '999888777666555444', content: 'test' },
+	} as unknown as ContextMenuCommandInteraction;
 }
 
 // ─── Tests ───────────────────────────────────────────────────────
@@ -265,6 +289,110 @@ describe('defineCommand', () => {
 
 			expect(result.ok).toBe(true);
 			expect(action).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	describe('context menu commands', () => {
+		test('execute accepts a context menu interaction', async () => {
+			const action = mock(async () => {});
+			const spark = defineCommand({
+				command: createMockContextMenuCommand('Report Message'),
+				action,
+			});
+
+			const client = createMockClient();
+			const interaction = createMockContextMenuInteraction();
+			const result = await spark.execute(interaction, client);
+
+			expect(result.ok).toBe(true);
+			expect(action).toHaveBeenCalledTimes(1);
+			expect(action).toHaveBeenCalledWith(interaction, client);
+		});
+
+		test('runs guards on context menu interaction', async () => {
+			const guard = passThroughGuard();
+			const action = mock(async () => {});
+			const spark = defineCommand({
+				command: createMockContextMenuCommand('Report Message'),
+				guards: [guard],
+				action,
+			});
+
+			const client = createMockClient();
+			const interaction = createMockContextMenuInteraction();
+			const result = await spark.execute(interaction, client);
+
+			expect(result.ok).toBe(true);
+			expect(guard).toHaveBeenCalledTimes(1);
+			expect(action).toHaveBeenCalledTimes(1);
+		});
+
+		test('rejects mismatched interaction type (context menu builder + slash interaction)', async () => {
+			const action = mock(async () => {});
+			const spark = defineCommand({
+				command: createMockContextMenuCommand('Report Message'),
+				action,
+			});
+
+			const client = createMockClient();
+			// Chat input interaction with isContextMenuCommand returning false
+			const interaction = createMockChatInputInteraction({
+				commandName: 'Report Message',
+			});
+			Object.assign(interaction, { isContextMenuCommand: () => false });
+			const result = await spark.execute(interaction, client);
+
+			expect(result.ok).toBe(false);
+			if (!result.ok) {
+				expect(result.reason).toBe('Interaction type mismatch.');
+			}
+			expect(action).not.toHaveBeenCalled();
+			expect(client.logger.warn).toHaveBeenCalledWith(
+				{ command: 'Report Message' },
+				'Interaction type does not match command registration',
+			);
+		});
+
+		test('rejects mismatched interaction type (slash builder + context menu interaction)', async () => {
+			const action = mock(async () => {});
+			const spark = defineCommand({
+				command: createMockCommand('Report Message'),
+				action,
+			});
+
+			const client = createMockClient();
+			const interaction = createMockContextMenuInteraction();
+			const result = await spark.execute(interaction, client);
+
+			expect(result.ok).toBe(false);
+			if (!result.ok) {
+				expect(result.reason).toBe('Interaction type mismatch.');
+			}
+			expect(action).not.toHaveBeenCalled();
+			expect(client.logger.warn).toHaveBeenCalledWith(
+				{ command: 'Report Message' },
+				'Interaction type does not match command registration',
+			);
+		});
+
+		test('returns guard failure and does NOT call action for context menu', async () => {
+			const guard = failGuard('Not allowed');
+			const action = mock(async () => {});
+			const spark = defineCommand({
+				command: createMockContextMenuCommand('Report Message'),
+				guards: [guard],
+				action,
+			});
+
+			const client = createMockClient();
+			const interaction = createMockContextMenuInteraction();
+			const result = await spark.execute(interaction, client);
+
+			expect(result.ok).toBe(false);
+			if (!result.ok) {
+				expect(result.reason).toBe('Not allowed');
+			}
+			expect(action).not.toHaveBeenCalled();
 		});
 	});
 
