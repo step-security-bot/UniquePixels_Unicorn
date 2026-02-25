@@ -24,7 +24,9 @@
 				"noVoid": "on",
 				"useSimplifiedLogicExpression": "on",
 				"useWhile": "on",
-				"useLiteralKeys": "off"
+				"useLiteralKeys": "off",
+				"noUselessCatchBinding": "on",
+				"noUselessUndefined": "on"
 			},
 			"correctness": {
 				"noGlobalDirnameFilename": "on",
@@ -36,22 +38,16 @@
 			},
 			"nursery": {
 				"noContinue": "on",
-				"noDeprecatedImports": "on",
 				"noEqualsToNull": "on",
 				"noFloatingPromises": "on",
 				"noForIn": "on",
-				"noImportCycles": "on",
 				"noMisusedPromises": "on",
 				"noMultiStr": "on",
 				"noParametersOnlyUsedInRecursion": "on",
 				"noProto": "on",
 				"noShadow": "on",
 				"noUnnecessaryConditions": "on",
-				"noUnusedExpressions": "on",
-				"noUselessCatchBinding": "on",
-				"noUselessUndefined": "on",
 				"useArraySortCompare": "on",
-				"useConsistentArrowReturn": "on",
 				"useExhaustiveSwitchCases": "on",
 				"useFind": "on",
 				"useSpread": "on"
@@ -113,7 +109,8 @@
 				"useSymbolDescription": "on",
 				"useThrowNewError": "on",
 				"useThrowOnlyError": "on",
-				"useTrimStartEnd": "on"
+				"useTrimStartEnd": "on",
+				"useConsistentArrowReturn": "on"
 			},
 			"suspicious": {
 				"noBitwiseOperators": "on",
@@ -131,7 +128,10 @@
 				"useAwait": "on",
 				"useErrorMessage": "on",
 				"useGuardForIn": "on",
-				"useNumberToFixedDigitsArgument": "error"
+				"useNumberToFixedDigitsArgument": "error",
+				"noDeprecatedImports": "on",
+				"noImportCycles": "on",
+				"noUnusedExpressions": "on"
 			}
 		}
 	},
