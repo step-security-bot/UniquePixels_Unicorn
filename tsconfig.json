@@ -30,7 +30,8 @@
 		"paths": {
 			"@/core/*": ["./src/core/*"],
 			"@/guards": ["./src/guards"],
-			"@/guards/*": ["./src/guards/*"]
+			"@/guards/*": ["./src/guards/*"],
+			"@/sparks/lib/*": ["./src/sparks/lib/*"]
 		}
 	}
 }

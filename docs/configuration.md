@@ -188,14 +188,10 @@ This works because:
 
 When `healthCheckPort` is set in the config, Unicorn starts a `Bun.serve()` HTTP server with endpoints for container orchestration probes:
 
-| Endpoint | Type | Status | Condition |
+| Endpoint | Type | Status | Body |
 |---|---|---|---|
-| `/health` | Liveness | `200 OK` | Always |
-| `/healthz` | Liveness | `200 OK` | Always |
-| `/ready` | Readiness | `200 Ready` | `client.isReady()` is `true` |
-| `/readyz` | Readiness | `200 Ready` | `client.isReady()` is `true` |
-| `/ready` | Readiness | `503 Not Ready` | `client.isReady()` is `false` |
-| `/readyz` | Readiness | `503 Not Ready` | `client.isReady()` is `false` |
+| `/health`, `/healthz` | Liveness | `200` (always) | `OK` |
+| `/ready`, `/readyz` | Readiness | `200` when ready, `503` otherwise | `Ready` or `Not Ready` |
 
 All other paths return `404 Not Found`.
 
