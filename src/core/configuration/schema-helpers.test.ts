@@ -1,6 +1,19 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import * as z from 'zod';
-import { Secret, Snowflake, envMap } from './schema-helpers.ts';
+import { MiscValue, Secret, Snowflake, envMap } from './schema-helpers.ts';
+
+/** Creates a restore function that resets `Bun.env` to its state at call time. */
+function makeEnvRestorer() {
+	const snapshot = { ...Bun.env };
+	return () => {
+		for (const key of Object.keys(Bun.env)) {
+			if (!(key in snapshot)) delete Bun.env[key];
+		}
+		for (const [key, value] of Object.entries(snapshot)) {
+			Bun.env[key] = value;
+		}
+	};
+}
 
 describe('Snowflake', () => {
 	test('accepts valid 17-digit snowflake', () => {
@@ -54,20 +67,13 @@ describe('Snowflake', () => {
 });
 
 describe('Secret', () => {
-	const originalEnv = { ...Bun.env };
+	const restoreEnv = makeEnvRestorer();
 
 	beforeEach(() => {
 		Bun.env['TEST_SECRET'] = 'secret_value_123';
 	});
 
-	afterEach(() => {
-		// Restore original env
-		for (const key of Object.keys(Bun.env)) {
-			if (!(key in originalEnv)) {
-				delete Bun.env[key];
-			}
-		}
-	});
+	afterEach(restoreEnv);
 
 	test('resolves secret from environment variable', () => {
 		const result = Secret.safeParse('secret://TEST_SECRET');
@@ -97,6 +103,62 @@ describe('Secret', () => {
 			expect(firstIssue).toBeDefined();
 			expect(firstIssue?.message).toContain('NONEXISTENT_VAR');
 		}
+	});
+});
+
+describe('MiscValue', () => {
+	const restoreEnv = makeEnvRestorer();
+
+	beforeEach(() => {
+		Bun.env['MISC_TEST_KEY'] = 'resolved_value';
+	});
+
+	afterEach(restoreEnv);
+
+	test('resolves secret:// strings from environment', () => {
+		const result = MiscValue.safeParse('secret://MISC_TEST_KEY');
+
+		expect(result.success).toBe(true);
+		expect(result.data).toBe('resolved_value');
+	});
+
+	test('fails for unset secret:// references', () => {
+		const result = MiscValue.safeParse('secret://UNSET_KEY');
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error.issues[0]?.message).toBe(
+				'Environment variable "UNSET_KEY" is not set',
+			);
+		}
+	});
+
+	test('rejects secret:// with no key', () => {
+		const result = MiscValue.safeParse('secret://');
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error.issues[0]?.message).toBe(
+				'Invalid secret reference (must be in the format `secret://key`)',
+			);
+		}
+	});
+
+	test('passes through non-secret strings unchanged', () => {
+		const result = MiscValue.safeParse('plain-string');
+
+		expect(result.success).toBe(true);
+		expect(result.data).toBe('plain-string');
+	});
+
+	test('passes through non-string values unchanged', () => {
+		const numberResult = MiscValue.safeParse(42);
+		expect(numberResult.success).toBe(true);
+		expect(numberResult.data).toBe(42);
+
+		const boolResult = MiscValue.safeParse(true);
+		expect(boolResult.success).toBe(true);
+		expect(boolResult.data).toBe(true);
 	});
 });
 

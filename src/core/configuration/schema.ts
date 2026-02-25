@@ -32,7 +32,7 @@ export const UnicornConfigSchema = z.object({
 			.optional(),
 	}),
 	healthCheckPort: z.number().int().min(1).max(65_535).optional(),
-	misc: z.record(z.string(), z.any()),
+	misc: z.record(z.string(), u.MiscValue),
 	ids: z.object({
 		role: z.record(z.string(), u.envMap(u.Snowflake)),
 		channel: z.record(z.string(), u.envMap(u.Snowflake)),

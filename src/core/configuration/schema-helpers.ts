@@ -62,22 +62,49 @@ export const Snowflake = z.custom<Snowflake>((val): val is Snowflake => {
  */
 export type Secret = `secret://${string}` & {};
 
+const SECRET_PREFIX = 'secret://';
+
 export const Secret = z
 	.custom<Secret>((value): value is Secret => {
 		if (typeof value !== 'string') {
 			return false;
 		}
-		return value.startsWith('secret://') && value.length > 9;
+		return (
+			value.startsWith(SECRET_PREFIX) && value.length > SECRET_PREFIX.length
+		);
 	}, 'Invalid secret reference (must be in the format `secret://key`)')
-	.transform((value, ctx): string => {
-		const key = value.substring(9);
-		const secret = Bun.env[key];
-		if (!secret) {
+	.transform((value, ctx): string => resolveSecret(value, ctx));
+
+/** Resolves a `secret://` key to its environment variable value. */
+function resolveSecret(value: string, ctx: z.RefinementCtx): string {
+	const key = value.substring(SECRET_PREFIX.length);
+	const secret = Bun.env[key];
+	if (secret === undefined) {
+		ctx.addIssue({
+			code: 'custom',
+			message: `Environment variable "${key}" is not set`,
+		});
+		return z.NEVER;
+	}
+	return secret;
+}
+
+/**
+ * A flexible value for the `misc` config bag.
+ * Strings matching `secret://key` are resolved from environment variables.
+ * All other values pass through unchanged.
+ */
+export const MiscValue = z.unknown().transform((value, ctx) => {
+	if (typeof value === 'string' && value.startsWith(SECRET_PREFIX)) {
+		if (value.length <= SECRET_PREFIX.length) {
 			ctx.addIssue({
 				code: 'custom',
-				message: `Environment variable "${key}" is not set`,
+				message:
+					'Invalid secret reference (must be in the format `secret://key`)',
 			});
 			return z.NEVER;
 		}
-		return secret;
-	});
+		return resolveSecret(value, ctx);
+	}
+	return value;
+});
