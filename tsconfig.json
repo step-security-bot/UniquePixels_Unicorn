@@ -28,10 +28,7 @@
 		"noUncheckedSideEffectImports": true,
 
 		"paths": {
-			"@/core/*": ["./src/core/*"],
-			"@/guards": ["./src/guards"],
-			"@/guards/*": ["./src/guards/*"],
-			"@/sparks/lib/*": ["./src/sparks/lib/*"]
+			"@/*": ["./src/*"]
 		}
 	}
 }
