@@ -1,5 +1,6 @@
 import { Events } from 'discord.js';
 import type { UnicornClient } from '@/core/client';
+import { attempt } from '@/core/lib/attempt';
 import {
 	defineGatewayEvent,
 	type GatewayEventSpark,
@@ -16,7 +17,18 @@ export const ready: GatewayEventSpark<typeof Events.ClientReady> =
 	defineGatewayEvent({
 		event: Events.ClientReady,
 		once: true,
-		action: (readyClient: ReadyClient, client: UnicornClient) => {
+		action: async (readyClient: ReadyClient, client: UnicornClient) => {
+			// Fetch all app emojis to cache them, so name lookup works
+			const emojiResult = await attempt(() =>
+				readyClient.application.emojis.fetch(),
+			);
+			if (!emojiResult.success) {
+				client.logger.error(
+					{ error: emojiResult.error },
+					'Failed to fetch emojis on ready',
+				);
+			}
+
 			client.logger.info(
 				{ user: readyClient.user.tag, guilds: readyClient.guilds.cache.size },
 				'Bot is ready',
