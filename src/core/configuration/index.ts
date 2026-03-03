@@ -1,4 +1,5 @@
-import type * as z from 'zod';
+import * as z from 'zod';
+import { AppError } from '@/core/lib/logger';
 import { UnicornConfigSchema } from './schema.ts';
 import type { Snowflake } from './schema-helpers.ts';
 
@@ -41,7 +42,7 @@ export type ParsedConfig<T extends UnicornConfig> = Omit<
  *
  * @param config - The raw configuration object
  * @returns The validated and transformed configuration with preserved id keys
- * @throws {ZodError} If validation fails
+ * @throws {AppError} With code `ERR_CONFIG_PARSE` if validation fails
  *
  * @example
  * ```ts
@@ -56,5 +57,16 @@ export type ParsedConfig<T extends UnicornConfig> = Omit<
 export function parseConfig<const T extends UnicornConfig>(
 	config: T,
 ): ParsedConfig<T> {
-	return UnicornConfigSchema.parse(config) as ParsedConfig<T>;
+	try {
+		return UnicornConfigSchema.parse(config) as ParsedConfig<T>;
+	} catch (error) {
+		throw new AppError('Configuration validation failed', {
+			code: 'ERR_CONFIG_PARSE',
+			isOperational: false,
+			metadata: {
+				issues: error instanceof z.ZodError ? error.issues : undefined,
+			},
+			...(error instanceof Error && { cause: error }),
+		});
+	}
 }

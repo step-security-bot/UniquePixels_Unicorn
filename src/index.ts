@@ -1,10 +1,9 @@
 import { join } from 'node:path';
 import process from 'node:process';
 import { Client, REST, Routes } from 'discord.js';
-import type { Logger } from 'pino';
 import { initializeUnicornClient } from '@/core/client';
 import { parseConfig } from '@/core/configuration';
-import { createLogger, registerDiscordLogging } from '@/core/logger';
+import { createLogger, type ExtendedLogger } from '@/core/lib/logger';
 import {
 	collectCommandBuilders,
 	type LoadSparksResult,
@@ -34,7 +33,7 @@ import { createShutdownHandler } from './shutdown';
  * @throws Error if startup fails at any step
  */
 
-const logger: Logger = createLogger();
+const logger: ExtendedLogger = createLogger();
 
 logger.info('Starting Unicorn...');
 
@@ -58,8 +57,13 @@ const discordClient: Client = new Client({
 // Initialize UnicornClient - attaches logger, config, and collections
 const client = initializeUnicornClient(discordClient, logger, config);
 
-// Register Discord.js logging hooks
-registerDiscordLogging(client, logger);
+// Register Discord.js debug/warn/error events through the logger with token redaction
+logger.registerDebugSource({
+	name: 'discord.js',
+	emitter: client,
+	eventMap: { debug: 'debug', warn: 'warn', error: 'error' },
+	redactPatterns: [/Bot\s+[\w+/=-]+\.[\w+/=-]+\.[\w+/=-]+/g],
+});
 
 // Load all sparks from the sparks directory
 // THROWS on load failure - app cannot function with broken sparks

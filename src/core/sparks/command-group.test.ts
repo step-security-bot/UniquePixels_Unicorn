@@ -6,6 +6,7 @@ import type {
 	SlashCommandBuilder,
 } from 'discord.js';
 import { createMockClient } from '@/core/lib/test-helpers';
+import { AppError } from '@/core/lib/logger';
 import { hasAutocomplete } from './command';
 import { defineCommandGroup } from './command-group';
 
@@ -838,14 +839,18 @@ describe('runtime type guard', () => {
 });
 
 describe('edge cases', () => {
-	test('throws when no subcommands or groups are provided', () => {
-		expect(() =>
-			defineCommandGroup({
-				command: createMockCommand('empty'),
-			}),
-		).toThrow(
-			'defineCommandGroup("empty"): at least one subcommand or group must be provided',
-		);
+	test('throws AppError when no subcommands or groups are provided', () => {
+		expect.assertions(4);
+
+		try {
+			defineCommandGroup({ command: createMockCommand('empty') });
+		} catch (error) {
+			expect(error).toBeInstanceOf(AppError);
+			const appErr = error as AppError;
+			expect(appErr.code).toBe('ERR_COMMAND_GROUP_EMPTY');
+			expect(appErr.isOperational).toBe(false);
+			expect(appErr.metadata['command']).toBe('empty');
+		}
 	});
 
 	test('returns failure when both subcommand and group are null', async () => {
@@ -922,6 +927,23 @@ describe('edge cases', () => {
 
 		await spark.execute(createMockInteraction('add', 'items'), client);
 		expect(groupedAdd).toHaveBeenCalled();
+	});
+
+	test('spark.action is a noop (routing handled by execute)', () => {
+		const listAction = mock(async () => {});
+		const spark = defineCommandGroup({
+			command: createMockCommand('manage'),
+			subcommands: {
+				list: { action: listAction },
+			},
+		});
+
+		// action exists for interface compliance but does nothing
+		expect(() =>
+			spark.action({} as ChatInputCommandInteraction, createMockClient()),
+		).not.toThrow();
+
+		expect(listAction).not.toHaveBeenCalled();
 	});
 
 	test('async guards work correctly', async () => {

@@ -1,5 +1,6 @@
 // biome-ignore lint/style/noExportedImports: re-export pattern for Sentry initialization side effect
 import * as Sentry from '@sentry/bun';
+import { sentryPinoIntegration } from '@/core/lib/logger';
 
 const isDev: boolean = Bun.env.NODE_ENV === 'development';
 
@@ -10,11 +11,7 @@ if (!isDev && Bun.env['sentryDSN']) {
 		enableLogs: true,
 		sendDefaultPii: true,
 		environment: Bun.env.NODE_ENV ?? 'production',
-		integrations: [
-			Sentry.pinoIntegration({
-				error: { levels: ['warn', 'error', 'fatal'] },
-			}),
-		],
+		integrations: [sentryPinoIntegration()],
 	});
 }
 

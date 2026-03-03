@@ -1,7 +1,7 @@
 import type { CronJob } from 'cron';
 import { type Client, Collection } from 'discord.js';
-import type { Logger } from 'pino';
 import type { ParsedConfig, UnicornConfig } from '@/core/configuration';
+import type { ExtendedLogger } from '@/core/lib/logger';
 import type { BaseCommandSpark } from '@/core/sparks/command';
 import type { BaseComponentSpark } from '@/core/sparks/component';
 
@@ -43,8 +43,8 @@ type RegisteredConfig = RegistryWithFallback['config'];
  * - scheduledJobs: Collection of active cron jobs for scheduled sparks
  */
 export interface UnicornClient extends Client {
-	/** Pino logger instance with Sentry integration in production */
-	logger: Logger;
+	/** Extended pino logger with Sentry integration and debug source registration. */
+	logger: ExtendedLogger;
 
 	/** Parsed configuration with type-safe access to IDs */
 	config: ParsedConfig<RegisteredConfig>;
@@ -66,13 +66,28 @@ export interface UnicornClient extends Client {
  * Type guard to check if a client is a UnicornClient.
  */
 export function isUnicornClient(client: Client): client is UnicornClient {
+	if (
+		!(
+			'logger' in client &&
+			'config' in client &&
+			'commands' in client &&
+			'components' in client &&
+			'componentPatterns' in client &&
+			'scheduledJobs' in client
+		)
+	) {
+		return false;
+	}
+
+	// Validate the ExtendedLogger contract to avoid false positives
+	const { logger } = client as { logger: unknown };
+	if (typeof logger !== 'object' || logger === null) {
+		return false;
+	}
+	const obj = logger as Record<string, unknown>;
 	return (
-		'logger' in client &&
-		'config' in client &&
-		'commands' in client &&
-		'components' in client &&
-		'componentPatterns' in client &&
-		'scheduledJobs' in client
+		typeof obj['shutdown'] === 'function' &&
+		typeof obj['registerDebugSource'] === 'function'
 	);
 }
 
@@ -82,7 +97,7 @@ export function isUnicornClient(client: Client): client is UnicornClient {
  */
 export function initializeUnicornClient(
 	client: Client,
-	logger: Logger,
+	logger: ExtendedLogger,
 	config: UnicornClient['config'],
 ): UnicornClient {
 	const unicornClient = client as UnicornClient;

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SlashCommandBuilder } from 'discord.js';
+import { AppError } from '@/core/lib/logger';
 import { createMockClient } from '@/core/lib/test-helpers';
 import { collectCommandBuilders, loadSparks } from './loader';
 
@@ -191,9 +192,20 @@ describe('loadSparks', () => {
 		`;
 		writeFileSync(join(testDir, 'throwing.ts'), throwingCode);
 
-		await expect(loadSparks(client, testDir)).rejects.toThrow(
-			/Failed to load spark.*throwing\.ts.*Import-time error/,
-		);
+		let caughtError: unknown;
+		try {
+			await loadSparks(client, testDir);
+			expect.unreachable('Expected loadSparks to throw');
+		} catch (error) {
+			caughtError = error;
+		}
+
+		expect(caughtError).toBeInstanceOf(AppError);
+		const appErr = caughtError as AppError;
+		expect(appErr.message).toMatch(/Failed to load spark.*throwing\.ts/);
+		expect(appErr.code).toBe('ERR_SPARK_LOAD');
+		expect(appErr.isOperational).toBe(false);
+		expect(appErr.cause).toBeInstanceOf(Error);
 	});
 
 	test('processes nested directories recursively', async () => {

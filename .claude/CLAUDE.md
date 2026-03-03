@@ -44,7 +44,6 @@ src/
 │   ├── client/                 # UnicornClient interface & initialization
 │   ├── configuration/          # Zod schemas, parseConfig(), type-safe IDs
 │   ├── guards/                 # Guard infrastructure (runGuards, createGuard)
-│   ├── logger/                 # Pino logger with Sentry transport
 │   ├── sparks/
 │   │   ├── command.ts          # defineCommand, defineCommandWithAutocomplete
 │   │   ├── command-group.ts    # defineCommandGroup (subcommands/groups)
@@ -56,6 +55,7 @@ src/
 │   └── lib/
 │       ├── attempt/            # Result type, attempt(), isError, unwrap, etc.
 │       ├── emoji/              # Application emoji resolver
+│       ├── logger/             # Pino logger, AppError classes, Sentry integration
 │       └── test-helpers/       # Mock client, interactions, guards for tests
 ├── guards/
 │   ├── index.ts                # Re-exports core + built-in guards
@@ -106,7 +106,7 @@ Exact/prefix IDs use `client.components` (O(1)). Wildcard/regex use `client.comp
 
 ### Error Handling
 
-**Core modules:** Errors bubble up — create custom error classes for proper context. **Startup:** Throw and terminate. **Sparks:** Log but don't terminate. Use `attempt()` from `@/core/lib/attempt` for `Result<T, Error>` wrapper (includes `isError()`, `unwrap()`, helpers). In sparks, all async calls and anything that may fail should use `attempt()` for Result-type error handling rather than uncaught exceptions.
+Use `AppError` (from `@/core/lib/logger`) with structured codes/metadata. Startup: throw and terminate. Sparks: use `attempt()` (from `@/core/lib/attempt`) for all fallible/async calls and log errors — never uncaught exceptions. See `docs/errors.md` for the complete guide.
 
 ### Configuration
 

@@ -185,6 +185,34 @@ describe('createShutdownHandler', () => {
 		expect(deps.exit).toHaveBeenCalledWith(0);
 	});
 
+	test('calls logger.shutdown() for flush', async () => {
+		const client = createMockClient();
+		const deps = createMockDeps({ client });
+		const shutdown = createShutdownHandler(deps);
+
+		await shutdown('SIGTERM');
+
+		expect(client.logger.shutdown).toHaveBeenCalledTimes(1);
+	});
+
+	test('logs warning when logger shutdown fails', async () => {
+		const client = createMockClient();
+		const error = new Error('flush failed');
+		(client.logger.shutdown as ReturnType<typeof mock>) = mock(() => {
+			throw error;
+		});
+		const deps = createMockDeps({ client });
+		const shutdown = createShutdownHandler(deps);
+
+		await shutdown('SIGTERM');
+
+		expect(client.logger.warn).toHaveBeenCalledWith(
+			{ err: error },
+			'Failed to flush logger/Sentry',
+		);
+		expect(deps.exit).toHaveBeenCalledWith(0);
+	});
+
 	test('logs warning when clearInterval fails', async () => {
 		const client = createMockClient();
 		const error = new Error('clearInterval failed');

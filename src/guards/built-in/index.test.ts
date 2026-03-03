@@ -564,6 +564,31 @@ describe('notBot', () => {
 	});
 });
 
+describe('rateLimit _testing utilities', () => {
+	beforeEach(() => {
+		_rateLimitTesting.clearStore();
+		_rateLimitTesting.resetConfig();
+	});
+
+	afterEach(() => {
+		_rateLimitTesting.clearStore();
+		_rateLimitTesting.resetConfig();
+	});
+
+	test('getStore returns the internal rate limit map', async () => {
+		const store = _rateLimitTesting.getStore();
+		expect(store).toBeInstanceOf(Map);
+		expect(store.size).toBe(0);
+
+		// After a guard invocation, the store should have an entry
+		const client = createMockClient();
+		const guard = rateLimit({ limit: 5, window: 60000 });
+		await guard(createMockInteraction({ userId: 'store-user' }), client);
+
+		expect(store.size).toBe(1);
+	});
+});
+
 describe('rateLimit LRU eviction', () => {
 	beforeEach(() => {
 		_rateLimitTesting.clearStore();

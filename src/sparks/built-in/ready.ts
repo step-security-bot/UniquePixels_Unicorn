@@ -24,7 +24,7 @@ export const ready: GatewayEventSpark<typeof Events.ClientReady> =
 			);
 			if (!emojiResult.success) {
 				client.logger.error(
-					{ error: emojiResult.error },
+					{ err: emojiResult.error },
 					'Failed to fetch emojis on ready',
 				);
 			}

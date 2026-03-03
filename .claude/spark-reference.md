@@ -18,6 +18,9 @@ import type { GuildInteraction, ChannelTypedInteraction } from '@/guards/built-i
 // Error handling
 import { attempt, isError, isResolved, unwrap, unwrapOr, mapResult, mapError } from '@/core/lib/attempt';
 import type { Result } from '@/core/lib/attempt';
+// Logger & error classes
+import { AppError, HttpError, ValidationError, DatabaseError } from '@/core/lib/logger';
+import type { ExtendedLogger } from '@/core/lib/logger';
 // Discord.js
 import { SlashCommandBuilder, ContextMenuCommandBuilder, ApplicationCommandType, Events, MessageFlags, PermissionFlagsBits, ChannelType as DChannelType, type ChatInputCommandInteraction, type CommandInteraction, type MessageContextMenuCommandInteraction, type UserContextMenuCommandInteraction, type AutocompleteInteraction, type ButtonInteraction, type StringSelectMenuInteraction, type ModalSubmitInteraction, type Message, type ClientEvents } from 'discord.js';
 // Client
@@ -338,11 +341,24 @@ mapResult(result, fn) / mapError(result, fn)
 
 ```ts
 client.logger.debug({ command: name, reason }, 'Command guard failed');
-client.logger.error({ command: name, err }, 'Command action failed');
-client.logger.warn({ command: name, err }, 'Autocomplete handler failed');
+client.logger.error({ err, command: name }, 'Command action failed');   // use 'err' key for errors
+client.logger.warn({ err, command: name }, 'Autocomplete handler failed');
 client.logger.info({ key: val }, 'Descriptive message');
 // Pattern: logger.level(metadata_object, message_string)
+// IMPORTANT: always use { err } key (not { error }) — triggers serializer
 ```
+
+## Error Classes
+
+Use `AppError` for domain errors — adds structured `code`, `metadata`, `isOperational` for Sentry:
+
+```ts
+throw new AppError('Queue full', { code: 'ERR_QUEUE_FULL', metadata: { size: 100 } });
+// In catch: wrap with cause chain
+throw new AppError('Failed to process', { code: 'ERR_PROCESS', cause: originalError });
+```
+
+See `docs/errors.md` for full hierarchy (HttpError, ValidationError, DatabaseError) and best practices.
 
 ## File Export Convention
 

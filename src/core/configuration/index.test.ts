@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { ActivityType, GatewayIntentBits, Partials } from 'discord.js';
+import { AppError } from '@/core/lib/logger';
 import { parseConfig } from './index.ts';
 
 describe('parseConfig', () => {
@@ -80,7 +81,7 @@ describe('parseConfig', () => {
 		expect(result.discord.appID.length).toBeGreaterThanOrEqual(17);
 	});
 
-	test('throws ZodError for invalid snowflake', () => {
+	test('throws AppError with ERR_CONFIG_PARSE for invalid snowflake', () => {
 		const invalidConfig = {
 			...validConfig,
 			discord: {
@@ -89,10 +90,23 @@ describe('parseConfig', () => {
 			},
 		};
 
-		expect(() => parseConfig(invalidConfig)).toThrow();
+		let caughtError: unknown;
+		try {
+			parseConfig(invalidConfig);
+			expect.unreachable('Expected parseConfig to throw');
+		} catch (error) {
+			caughtError = error;
+		}
+
+		expect(caughtError).toBeInstanceOf(AppError);
+		const appErr = caughtError as AppError;
+		expect(appErr.code).toBe('ERR_CONFIG_PARSE');
+		expect(appErr.isOperational).toBe(false);
+		expect(appErr.metadata['issues']).toBeDefined();
+		expect(appErr.cause).toBeInstanceOf(Error);
 	});
 
-	test('throws ZodError for missing required fields', () => {
+	test('throws AppError with ERR_CONFIG_PARSE for missing required fields', () => {
 		const incompleteConfig = {
 			discord: {
 				appID: '12345678901234567',
@@ -101,13 +115,33 @@ describe('parseConfig', () => {
 			ids: { role: {}, channel: {}, emoji: {} },
 		};
 
-		expect(() => parseConfig(incompleteConfig as never)).toThrow();
+		let caughtError: unknown;
+		try {
+			parseConfig(incompleteConfig as never);
+			expect.unreachable('Expected parseConfig to throw');
+		} catch (error) {
+			caughtError = error;
+		}
+
+		expect(caughtError).toBeInstanceOf(AppError);
+		expect((caughtError as AppError).code).toBe('ERR_CONFIG_PARSE');
 	});
 
-	test('throws when secret environment variable is missing', () => {
+	test('throws AppError when secret environment variable is missing', () => {
 		delete Bun.env['DISCORD_TOKEN'];
 
-		expect(() => parseConfig(validConfig)).toThrow();
+		let caughtError: unknown;
+		try {
+			parseConfig(validConfig);
+			expect.unreachable('Expected parseConfig to throw');
+		} catch (error) {
+			caughtError = error;
+		}
+
+		expect(caughtError).toBeInstanceOf(AppError);
+		const appErr = caughtError as AppError;
+		expect(appErr.code).toBe('ERR_CONFIG_PARSE');
+		expect(appErr.isOperational).toBe(false);
 	});
 
 	test('allows optional oAuth2 to be omitted', () => {

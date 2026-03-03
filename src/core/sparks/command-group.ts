@@ -7,6 +7,7 @@ import type { UnicornClient } from '@/core/client';
 import type { Guard, GuardResult } from '@/core/guards';
 import { runGuards } from '@/core/guards';
 import { attempt, isError } from '@/core/lib/attempt';
+import { AppError } from '@/core/lib/logger';
 import type {
 	BaseCommandSpark,
 	CommandAction,
@@ -137,8 +138,13 @@ export function defineCommandGroup<
 	const hasSubcommands = Object.keys(subcommands).length > 0;
 	const hasGroups = Object.keys(groups).length > 0;
 	if (!(hasSubcommands || hasGroups)) {
-		throw new Error(
+		throw new AppError(
 			`defineCommandGroup("${command.name}"): at least one subcommand or group must be provided`,
+			{
+				code: 'ERR_COMMAND_GROUP_EMPTY',
+				metadata: { command: command.name },
+				isOperational: false,
+			},
 		);
 	}
 

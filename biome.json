@@ -84,7 +84,7 @@
 					"options": { "accessibility": "explicit" }
 				},
 				"useDefaultParameterLast": "on",
-				"useDefaultSwitchClause": "on",
+				"useDefaultSwitchClause": "off",
 				"useEnumInitializers": "on",
 				"useExplicitLengthCheck": "on",
 				"useFilenamingConvention": {

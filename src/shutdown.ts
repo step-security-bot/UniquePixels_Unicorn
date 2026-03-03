@@ -1,10 +1,10 @@
-import type { Logger } from 'pino';
 import type { UnicornClient } from '@/core/client';
 import { attempt, isError } from '@/core/lib/attempt';
+import type { ExtendedLogger } from '@/core/lib/logger';
 import { stopAllScheduledJobs } from '@/core/sparks';
 export interface ShutdownDeps {
 	client: UnicornClient;
-	logger: Logger;
+	logger: ExtendedLogger;
 	cleanupIntervalId: Timer;
 	healthCheckServer?: { stop(): void };
 	exit: (code: number) => never;
@@ -16,7 +16,7 @@ export interface ShutdownDeps {
 
 /** Runs a cleanup step, logging a warning on failure without throwing. */
 async function safeCleanup(
-	logger: Logger,
+	logger: ExtendedLogger,
 	message: string,
 	fn: () => void | Promise<void>,
 ): Promise<void> {
@@ -78,6 +78,11 @@ export function createShutdownHandler(
 		);
 
 		logger.info('Shutdown complete');
+
+		await safeCleanup(logger, 'Failed to flush logger/Sentry', () =>
+			logger.shutdown(),
+		);
+
 		clearTimeoutFn(forceExitTimeout);
 		exit(0);
 	};

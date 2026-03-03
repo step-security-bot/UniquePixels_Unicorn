@@ -20,6 +20,8 @@ interface MockClientOverrides {
 		info: ReturnType<typeof mock>;
 		warn: ReturnType<typeof mock>;
 		error: ReturnType<typeof mock>;
+		registerDebugSource: ReturnType<typeof mock>;
+		shutdown: ReturnType<typeof mock>;
 	}>;
 }
 
@@ -62,6 +64,9 @@ export function createMockClient(
 			info: overrides.logger?.info ?? mock(() => {}),
 			warn: overrides.logger?.warn ?? mock(() => {}),
 			error: overrides.logger?.error ?? mock(() => {}),
+			registerDebugSource:
+				overrides.logger?.registerDebugSource ?? mock(() => mock(() => {})),
+			shutdown: overrides.logger?.shutdown ?? mock(async () => {}),
 		},
 	} as unknown as UnicornClient;
 }

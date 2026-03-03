@@ -1,6 +1,7 @@
 import { relative } from 'node:path';
 import process from 'node:process';
 import type { UnicornClient } from '@/core/client';
+import { AppError } from '@/core/lib/logger';
 import type { CommandSpark } from './command';
 import type { ComponentSpark } from './component';
 import type { GatewayEventSpark } from './gateway-event';
@@ -129,19 +130,16 @@ async function findFiles(
  * @returns A string identifier for logging
  */
 function getSparkId(spark: AnySpark): string {
-	if (spark.type === 'command') {
-		return spark.id;
+	switch (spark.type) {
+		case 'command':
+			return spark.id;
+		case 'component':
+			return spark.key;
+		case 'gateway-event':
+			return String(spark.event);
+		case 'scheduled-event':
+			return spark.id;
 	}
-	if (spark.type === 'component') {
-		return spark.key;
-	}
-	if (spark.type === 'gateway-event') {
-		return String(spark.event);
-	}
-	if (spark.type === 'scheduled-event') {
-		return spark.id;
-	}
-	return 'unknown';
 }
 
 /**
@@ -222,14 +220,6 @@ export async function loadSparks(
 						case 'scheduled-event':
 							result.scheduled++;
 							break;
-						default: {
-							// Exhaustive check - this should never happen since isSpark validates the type
-							const _exhaustive: never = spark;
-							client.logger.warn(
-								{ type: (_exhaustive as AnySpark).type },
-								'Unknown spark type encountered',
-							);
-						}
 					}
 
 					client.logger.debug(
@@ -245,9 +235,11 @@ export async function loadSparks(
 			}
 		} catch (error) {
 			// Re-throw with context - startup errors should terminate
-			const message = error instanceof Error ? error.message : String(error);
-			throw new Error(`Failed to load spark from ${relativePath}: ${message}`, {
-				cause: error,
+			throw new AppError(`Failed to load spark from ${relativePath}`, {
+				code: 'ERR_SPARK_LOAD',
+				metadata: { file: relativePath },
+				isOperational: false,
+				cause: error instanceof Error ? error : new Error(String(error)),
 			});
 		}
 	}

@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'bun:test';
 import { Client, Collection, GatewayIntentBits } from 'discord.js';
-import type { Logger } from 'pino';
+import type { ExtendedLogger } from '@/core/lib/logger';
 import { type UnicornClient, initializeUnicornClient, isUnicornClient } from './index';
 
 // ─── Test Helpers ────────────────────────────────────────────────
@@ -9,13 +9,15 @@ function createRealClient(): Client {
 	return new Client({ intents: [GatewayIntentBits.Guilds] });
 }
 
-function createMockLogger(): Logger {
+function createMockLogger(): ExtendedLogger {
 	return {
 		debug: mock(() => {}),
 		info: mock(() => {}),
 		warn: mock(() => {}),
 		error: mock(() => {}),
-	} as unknown as Logger;
+		registerDebugSource: mock(() => mock(() => {})),
+		shutdown: mock(async () => {}),
+	} as unknown as ExtendedLogger;
 }
 
 function createMockConfig(): UnicornClient['config'] {
@@ -141,6 +143,30 @@ describe('isUnicornClient', () => {
 			createMockLogger();
 
 		expect(isUnicornClient(client)).toBe(false);
+	});
+
+	test('returns false when logger is not an object', () => {
+		const client = createRealClient() as unknown as Record<string, unknown>;
+		client['logger'] = 'not-an-object';
+		client['config'] = createMockConfig();
+		client['commands'] = new Collection();
+		client['components'] = new Collection();
+		client['componentPatterns'] = [];
+		client['scheduledJobs'] = new Collection();
+
+		expect(isUnicornClient(client as unknown as Client)).toBe(false);
+	});
+
+	test('returns false when logger lacks ExtendedLogger methods', () => {
+		const client = createRealClient() as unknown as Record<string, unknown>;
+		client['logger'] = { info: () => {} };
+		client['config'] = createMockConfig();
+		client['commands'] = new Collection();
+		client['components'] = new Collection();
+		client['componentPatterns'] = [];
+		client['scheduledJobs'] = new Collection();
+
+		expect(isUnicornClient(client as unknown as Client)).toBe(false);
 	});
 
 	test('returns false for partially-augmented client (missing componentPatterns)', () => {

@@ -5,6 +5,7 @@ unicorndc
 
 # Tooling (package names, etc.)
 commitlintrc
+pinojs
 
 # Misc prop names from external sources
 Filenaming # biome
