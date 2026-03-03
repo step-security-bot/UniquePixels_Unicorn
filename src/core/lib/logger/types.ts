@@ -1,7 +1,15 @@
+/* coverage-ignore-file: type-only module, no runtime code */
 import type { Logger, LoggerOptions } from 'pino';
 
 /** Pino log levels. */
-export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+export type LogLevel =
+	| 'trace'
+	| 'debug'
+	| 'info'
+	| 'warn'
+	| 'error'
+	| 'fatal'
+	| 'silent';
 
 /** Runtime environment. */
 export type Environment = 'development' | 'production' | 'test';

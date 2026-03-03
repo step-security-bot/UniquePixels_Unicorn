@@ -1,8 +1,8 @@
 import * as Sentry from '@sentry/bun';
 import type { LogLevel } from './types.ts';
 
-/** Pino log level names re-exported for Sentry integration consumers. */
-export type SentryLogLevel = LogLevel;
+/** Pino severity levels (excludes `silent` which disables all output). */
+export type SentryLogLevel = Exclude<LogLevel, 'silent'>;
 
 /** Options for configuring the Sentry–Pino integration. */
 export interface SentryPinoOptions {

@@ -24,11 +24,13 @@ Unicorn is a Discord bot framework built on Discord.js and TypeScript, designed 
 
 ```bash
 bun start          # Run with Sentry preload
-bun lint           # Format + check + typecheck
-bun lint:tsc       # TypeScript typecheck
-bun lint:code      # Biome lint check
-bun lint:format    # Biome autoformat
-bun test           # Run tests (90% coverage threshold)
+bun qa             # Full quality gate: format + lint + typecheck + test
+bun qa:format      # Biome autoformat
+bun qa:lint        # Biome lint check
+bun qa:lint-ci     # Biome lint with GitHub Actions reporter
+bun qa:tsc         # TypeScript typecheck
+bun qa:test        # Run tests + patch lcov with untested files
+bun test           # Run tests only (90% coverage threshold)
 ```
 
 ## File Structure
@@ -139,7 +141,7 @@ Use Bun's test runner. Coverage threshold: 90%.
 
 ## Task Completion
 
-Run `bun lint` and `bun test` before marking any task complete. All changes must be committed.
+Run `bun qa` before marking any task complete. All changes must be committed.
 
 ## Git Commits
 

@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { beforeAll, describe, expect, spyOn, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import { Writable } from 'node:stream';
 import pino from 'pino';
@@ -43,9 +43,25 @@ function createTestLogger() {
 	return { logger, lines };
 }
 
+/** Runs `fn` with `process.stderr.write` suppressed, then restores it. */
+function withSilentStderr<T>(fn: (spy: ReturnType<typeof spyOn>) => T): T {
+	const spy = spyOn(process.stderr, 'write').mockImplementation(() => true);
+	try {
+		return fn(spy);
+	} finally {
+		spy.mockRestore();
+	}
+}
+
 // ─── createLogger ───────────────────────────────────────────────
 
 describe('createLogger', () => {
+	// Pre-register global handlers with a silent logger so handler
+	// tests don't write to stdout when exercising uncaughtException/unhandledRejection.
+	beforeAll(() => {
+		createLogger({ environment: 'test', disablePretty: true, level: 'silent' });
+	});
+
 	test('returns logger with standard pino methods', () => {
 		const logger = createLogger({
 			environment: 'development',
@@ -110,11 +126,8 @@ describe('createLogger', () => {
 		await expect(logger.shutdown()).resolves.toBeUndefined();
 	});
 
-	test('writes to stdout without errors', () => {
-		const logger = createLogger({
-			environment: 'development',
-			disablePretty: true,
-		});
+	test('log methods do not throw', () => {
+		const { logger } = createTestLogger();
 		expect(() => {
 			logger.info('test info');
 			logger.warn('test warn');
@@ -644,49 +657,55 @@ describe('registerDebugSource', () => {
 	});
 
 	test('catches logging errors without crashing the emitter', () => {
-		const { logger } = createTestLogger();
-		const emitter = new EventEmitter();
+		withSilentStderr((stderrSpy) => {
+			const { logger } = createTestLogger();
+			const emitter = new EventEmitter();
 
-		registerDebugSource(logger, {
-			name: 'broken-source',
-			emitter,
-			eventMap: { data: 'info' },
-		});
+			registerDebugSource(logger, {
+				name: 'broken-source',
+				emitter,
+				eventMap: { data: 'info' },
+			});
 
-		// Proxy that throws on any property access — pino will blow up trying to serialize it
-		const bomb = new Proxy(
-			{},
-			{
-				get() {
-					throw new Error('serialization boom');
+			// Proxy that throws on any property access — pino will blow up trying to serialize it
+			const bomb = new Proxy(
+				{},
+				{
+					get() {
+						throw new Error('serialization boom');
+					},
 				},
-			},
-		);
+			);
 
-		// Should not throw — the catch block swallows it
-		expect(() => emitter.emit('data', bomb)).not.toThrow();
+			// Should not throw — the catch block swallows it and writes to stderr
+			expect(() => emitter.emit('data', bomb)).not.toThrow();
+			expect(stderrSpy).toHaveBeenCalled();
+		});
 	});
 
 	test('handles non-removable emitters gracefully', () => {
-		const { logger } = createTestLogger();
-		const emitter = { on: (_e: string, _l: (...args: unknown[]) => void) => {} };
+		withSilentStderr((stderrSpy) => {
+			const { logger } = createTestLogger();
+			const emitter = { on: (_e: string, _l: (...args: unknown[]) => void) => {} };
 
-		const unsub = registerDebugSource(logger, {
-			name: 'no-remove',
-			emitter,
-			eventMap: { debug: 'debug' },
+			const unsub = registerDebugSource(logger, {
+				name: 'no-remove',
+				emitter,
+				eventMap: { debug: 'debug' },
+			});
+
+			// Unsubscribe should warn but not throw
+			expect(() => unsub()).not.toThrow();
+			expect(stderrSpy).toHaveBeenCalled();
+
+			// Re-registering same name returns noop when marked non-removable
+			const unsub2 = registerDebugSource(logger, {
+				name: 'no-remove',
+				emitter,
+				eventMap: { debug: 'debug' },
+			});
+			expect(() => unsub2()).not.toThrow();
 		});
-
-		// Unsubscribe should warn but not throw
-		expect(() => unsub()).not.toThrow();
-
-		// Re-registering same name returns noop when marked non-removable
-		const unsub2 = registerDebugSource(logger, {
-			name: 'no-remove',
-			emitter,
-			eventMap: { debug: 'debug' },
-		});
-		expect(() => unsub2()).not.toThrow();
 	});
 });
 

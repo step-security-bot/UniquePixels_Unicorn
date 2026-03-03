@@ -2,11 +2,40 @@
 unicorndc
 
 # Contributor names
+uniquepixels
 
-# Tooling (package names, etc.)
+# Tooling (package names, Github actions, etc.)
+bunfig
 commitlintrc
 pinojs
+SonarQube
+Rollen
+joshbolduc
+sonarlint
+
+# Harden runner URLs
+githubapp
+keybase
+npmjs
+securityscorecards
+
+# Kubernetes / infrastructure conventions
+healthz # K8s health check endpoint
+readyz # K8s readiness endpoint
+
+# Programming terms
+contravariance
+docstrings
+
+# Abbreviations
+sched # scheduled
+unsub # unsubscribe
+
+# Test fixture values
+banhammer
+checkmark
 
 # Misc prop names from external sources
 Filenaming # biome
 shouty # biome
+qualitygate # SonarQube
