@@ -16,20 +16,29 @@
 	},
 	"packageRules": [
 		{
-			"description": "Automerge non-major updates by default",
+			"description": "Automerge non-major updates during work hours",
 			"matchUpdateTypes": ["minor", "patch"],
-			"automerge": true
+			"automerge": true,
+			"platformAutomerge": false,
+			"schedule": ["after 9am and before 5pm on weekdays"],
+			"automergeSchedule": ["after 9am and before 5pm on weekdays"]
 		},
 		{
-			"description": "Group Bun runtime and types — require review",
+			"description": "Group Bun runtime, types, and Docker image — require review",
 			"groupName": "bun",
-			"matchDepNames": ["bun", "@types/bun"],
+			"matchDepNames": ["bun", "@types/bun", "oven/bun"],
 			"automerge": false
 		},
 		{
 			"description": "Group Biome linter and tooling — require review",
 			"groupName": "biome",
 			"matchDepNames": ["biome", "@biomejs/biome"],
+			"automerge": false
+		},
+		{
+			"description": "Group Prisma packages — require review",
+			"groupName": "prisma",
+			"matchDepNames": ["/^prisma$/", "/^@prisma\\//"],
 			"automerge": false
 		},
 		{
