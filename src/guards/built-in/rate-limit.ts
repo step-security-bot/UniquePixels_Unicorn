@@ -113,7 +113,7 @@ const defaultRateLimitKeyFn = <T extends Interaction>(input: T): string =>
  * export const expensiveCommand = defineCommand({
  *   command: builder,
  *   guards: [rateLimit({ limit: 5, window: 60_000 })],
- *   action: async (interaction, client) => { // ...
+ *   action: async (interaction) => { // ...
  *   },
  * });
  *
@@ -128,7 +128,7 @@ const defaultRateLimitKeyFn = <T extends Interaction>(input: T): string =>
  *       keyFn: (i) => `${i.guildId}:${i.user.id}`,
  *     }),
  *   ],
- *   action: async (interaction, client) => { // ...
+ *   action: async (interaction) => { // ...
  *   },
  * });
  * ```
@@ -142,7 +142,7 @@ export function rateLimit<T extends Interaction>(options: {
 	const { limit, window, message } = options;
 	const keyFn = options.keyFn ?? defaultRateLimitKeyFn;
 
-	return createGuard((input, _client) => {
+	return createGuard((input) => {
 		const key = keyFn(input);
 		const now = Date.now();
 		const entry = rateLimitStore.get(key);

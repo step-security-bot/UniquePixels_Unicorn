@@ -11,7 +11,7 @@ import { createMockClient, createMockChatInputInteraction, createMockAutocomplet
 // Spark definitions (for direct instantiation in tests)
 import { defineCommand, defineCommandWithAutocomplete, defineCommandGroup, defineComponent, defineGatewayEvent, defineScheduledEvent } from '@/core/sparks';
 // Types as needed
-import type { UnicornClient } from '@/core/client';
+import type { Client } from 'discord.js';
 ```
 
 ## Test Helper APIs
@@ -27,8 +27,9 @@ createMockClient({
   on?, once?,       // mock fns
   isReady?,         // boolean (default true)
   ws?,              // { ping: number } (default { ping: 0 })
+  config?,          // Partial<Client['config']> (default: minimal mock config)
   logger?,          // Partial<{ debug, info, warn, error }> — all mock fns
-}): UnicornClient
+}): Client
 ```
 
 All logger methods are mocks. Also has `destroy: mock(() => {})`.
@@ -134,10 +135,9 @@ describe('myCommand', () => {
   });
 
   test('executes action on success', async () => {
-    const client = createMockClient();
     const reply = mock(async () => {});
     const interaction = createMockChatInputInteraction({ commandName: 'my-command', reply });
-    const result = await myCommand.execute(interaction, client);
+    const result = await myCommand.execute(interaction);
     expect(result.ok).toBe(true);
     expect(reply).toHaveBeenCalled();
   });
@@ -148,9 +148,8 @@ describe('myCommand', () => {
       guards: [failGuard('Denied')],
       action: mock(async () => {}),
     });
-    const client = createMockClient();
     const interaction = createMockChatInputInteraction();
-    const result = await spark.execute(interaction, client);
+    const result = await spark.execute(interaction);
     expect(result.ok).toBe(false);
   });
 });
@@ -173,7 +172,7 @@ const interaction = createMockChatInputInteraction({
   commandName: 'manage',
   options: { subcommand: 'list' },
 });
-const result = await spark.execute(interaction, client);
+const result = await spark.execute(interaction);
 ```
 
 ### Pattern: Component test
@@ -184,7 +183,7 @@ const spark = defineComponent({
   action: mock(async () => {}),
 });
 const interaction = createMockComponentInteraction('my-button');
-const result = await spark.execute(interaction, client);
+const result = await spark.execute(interaction);
 expect(result.ok).toBe(true);
 ```
 
@@ -204,7 +203,7 @@ await spark.execute([msg], client);
 ### Pattern: Scheduled event test
 
 ```ts
-function createMockContext(client: UnicornClient): ScheduledContext {
+function createMockContext(client: Client): ScheduledContext {
   return { client, job: {} as CronJob, fireDate: new Date() };
 }
 
@@ -251,9 +250,10 @@ test('logs error when action throws', async () => {
     command: createMockCommand('test'),
     action: async () => { throw new Error('boom'); },
   });
-  const result = await spark.execute(interaction, client);
+  const interaction = createMockChatInputInteraction();
+  const result = await spark.execute(interaction);
   expect(result.ok).toBe(true); // guards passed
-  expect(client.logger.error).toHaveBeenCalledWith(
+  expect(interaction.client.logger.error).toHaveBeenCalledWith(
     expect.objectContaining({ command: 'test' }),
     'Command action failed',
   );
@@ -263,16 +263,19 @@ test('logs error when action throws', async () => {
 ### Pattern: Logging assertions
 
 ```ts
+// Access logger via interaction.client for command/component sparks
+const { logger } = interaction.client;
+
 // Guard failure (debug)
-expect(client.logger.debug).toHaveBeenCalledWith(
+expect(logger.debug).toHaveBeenCalledWith(
   { command: 'name', reason: 'msg' }, 'Command guard failed',
 );
 // Action failure (error)
-expect(client.logger.error).toHaveBeenCalledWith(
+expect(logger.error).toHaveBeenCalledWith(
   expect.objectContaining({ command: 'name' }), 'Command action failed',
 );
 // Autocomplete failure (warn)
-expect(client.logger.warn).toHaveBeenCalledWith(
+expect(logger.warn).toHaveBeenCalledWith(
   expect.objectContaining({ command: 'name' }), 'Autocomplete handler failed',
 );
 ```

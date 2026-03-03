@@ -143,7 +143,7 @@ If the action throws, the error is logged but the cron job continues running. Th
 
 ```text
 Scheduled tick fires
-  -> runGuards(guards, ctx, client)
+  -> runGuards(guards, ctx)
   -> if guards fail: log reason at debug level, skip action
   -> action(ctx)
   -> if action throws: log error (don't crash, job keeps running)
@@ -188,7 +188,7 @@ The context object passed to scheduled event actions and guards.
 
 | Property | Type | Description |
 |---|---|---|
-| `client` | `UnicornClient` | The bot client instance |
+| `client` | `Client` | The bot client instance |
 | `job` | `CronJob` | The cron job instance that fired this tick |
 | `fireDate` | `Date` | The time this tick was scheduled to fire |
 

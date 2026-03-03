@@ -1,9 +1,9 @@
-import type { UnicornClient } from '@/core/client';
+import type { Client } from 'discord.js';
 import { attempt, isError } from '@/core/lib/attempt';
 import type { ExtendedLogger } from '@/core/lib/logger';
 import { stopAllScheduledJobs } from '@/core/sparks';
 export interface ShutdownDeps {
-	client: UnicornClient;
+	client: Client;
 	logger: ExtendedLogger;
 	cleanupIntervalId: Timer;
 	healthCheckServer?: { stop(): void };

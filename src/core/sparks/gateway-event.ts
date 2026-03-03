@@ -1,5 +1,4 @@
-import type { ClientEvents, Events } from 'discord.js';
-import type { UnicornClient } from '@/core/client';
+import type { Client, ClientEvents, Events } from 'discord.js';
 import type { Guard, GuardResult } from '@/core/guards';
 import { runGuards } from '@/core/guards';
 import { attempt, isError } from '@/core/lib/attempt';
@@ -20,7 +19,7 @@ export type GatewayEventAction<
 	E extends keyof ClientEvents,
 	TGuarded extends EventArg<E> = EventArg<E>,
 > = (
-	...args: [TGuarded, ...Tail<ClientEvents[E]>, UnicornClient]
+	...args: [TGuarded, ...Tail<ClientEvents[E]>, Client]
 ) => void | Promise<void>;
 
 /**
@@ -56,11 +55,11 @@ export interface GatewayEventSpark<
 	/** Execute the event handler (runs guards then action) */
 	execute(
 		eventArgs: ClientEvents[E],
-		client: UnicornClient,
+		client: Client,
 	): Promise<GuardResult<TGuarded>>;
 
 	/** Register this spark with the client */
-	register(client: UnicornClient): void;
+	register(client: Client): void;
 }
 
 /**
@@ -102,13 +101,12 @@ export function defineGatewayEvent<
 
 		async execute(
 			eventArgs: ClientEvents[E],
-			client: UnicornClient,
+			client: Client,
 		): Promise<GuardResult<TGuarded>> {
 			// Run guards on the first event arg
 			const guardResult = await runGuards(
 				guards as readonly Guard<unknown, unknown>[],
 				eventArgs[0],
-				client,
 			);
 
 			if (!guardResult.ok) {
@@ -135,7 +133,7 @@ export function defineGatewayEvent<
 			return guardResult as GuardResult<TGuarded>;
 		},
 
-		register(client: UnicornClient): void {
+		register(client: Client): void {
 			const handler = async (...args: ClientEvents[E]) => {
 				try {
 					await this.execute(args, client);

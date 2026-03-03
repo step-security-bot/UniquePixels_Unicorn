@@ -294,13 +294,12 @@ describe('ComponentSpark.execute', () => {
 			action: actionMock,
 		});
 
-		const client = createMockClient();
 		const interaction = createMockComponentInteraction('test');
 
-		const result = await spark.execute(interaction, client);
+		const result = await spark.execute(interaction);
 
 		expect(result.ok).toBe(true);
-		expect(actionMock).toHaveBeenCalledWith(interaction, client);
+		expect(actionMock).toHaveBeenCalledWith(interaction);
 	});
 
 	test('runs guards before action', async () => {
@@ -319,10 +318,9 @@ describe('ComponentSpark.execute', () => {
 			},
 		});
 
-		const client = createMockClient();
 		const interaction = createMockComponentInteraction('test');
 
-		await spark.execute(interaction, client);
+		await spark.execute(interaction);
 
 		expect(calls).toEqual(['guard', 'action']);
 	});
@@ -341,10 +339,9 @@ describe('ComponentSpark.execute', () => {
 			action: actionMock,
 		});
 
-		const client = createMockClient();
 		const interaction = createMockComponentInteraction('test');
 
-		const result = await spark.execute(interaction, client);
+		const result = await spark.execute(interaction);
 
 		expect(result.ok).toBe(false);
 		expect(actionMock).not.toHaveBeenCalled();
@@ -362,10 +359,9 @@ describe('ComponentSpark.execute', () => {
 			action: async () => {},
 		});
 
-		const client = createMockClient();
 		const interaction = createMockComponentInteraction('test');
 
-		const result = await spark.execute(interaction, client);
+		const result = await spark.execute(interaction);
 
 		expect(result.ok).toBe(false);
 		expect((result as { ok: false; reason: string }).reason).toBe(
@@ -382,9 +378,9 @@ describe('ComponentSpark.execute', () => {
 		});
 
 		const client = createMockClient();
-		const interaction = createMockComponentInteraction('test');
+		const interaction = createMockComponentInteraction('test', { client });
 
-		const result = await spark.execute(interaction, client);
+		const result = await spark.execute(interaction);
 
 		expect(result.ok).toBe(true); // Guards passed
 		expect(client.logger.error).toHaveBeenCalled();
@@ -403,9 +399,9 @@ describe('ComponentSpark.execute', () => {
 		});
 
 		const client = createMockClient();
-		const interaction = createMockComponentInteraction('test');
+		const interaction = createMockComponentInteraction('test', { client });
 
-		await spark.execute(interaction, client);
+		await spark.execute(interaction);
 
 		expect(client.logger.debug).toHaveBeenCalled();
 	});

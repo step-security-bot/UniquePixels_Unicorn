@@ -1,16 +1,17 @@
 import type {
 	ButtonInteraction,
 	ChannelSelectMenuInteraction,
+	Client,
 	MentionableSelectMenuInteraction,
 	ModalSubmitInteraction,
 	RoleSelectMenuInteraction,
 	StringSelectMenuInteraction,
 	UserSelectMenuInteraction,
 } from 'discord.js';
-import type { UnicornClient } from '@/core/client';
 import type { Guard, GuardResult } from '@/core/guards';
 import { runGuards } from '@/core/guards';
 import { attempt, isError } from '@/core/lib/attempt';
+import type { ExtendedLogger } from '@/core/lib/logger';
 
 /**
  * Union of all select menu interaction types.
@@ -42,11 +43,9 @@ export type CustomIdPattern = string | RegExp;
 
 /**
  * Action function for components.
+ * Access client via `interaction.client`.
  */
-export type ComponentAction<T> = (
-	interaction: T,
-	client: UnicornClient,
-) => void | Promise<void>;
+export type ComponentAction<T> = (interaction: T) => void | Promise<void>;
 
 /**
  * Options for defining a component spark.
@@ -82,13 +81,10 @@ export interface BaseComponentSpark {
 	matches(customId: string): boolean;
 
 	/** Execute the component handler (runs guards then action) */
-	execute(
-		interaction: AnyComponentInteraction,
-		client: UnicornClient,
-	): Promise<GuardResult<unknown>>;
+	execute(interaction: AnyComponentInteraction): Promise<GuardResult<unknown>>;
 
 	/** Register this spark with the client */
-	register(client: UnicornClient): void;
+	register(client: Client): void;
 }
 
 /**
@@ -108,13 +104,10 @@ export interface ComponentSpark<
 	matches(customId: string): boolean;
 
 	/** Execute the component handler (runs guards then action) */
-	execute(
-		interaction: TInput,
-		client: UnicornClient,
-	): Promise<GuardResult<TGuarded>>;
+	execute(interaction: TInput): Promise<GuardResult<TGuarded>>;
 
 	/** Register this spark with the client */
-	register(client: UnicornClient): void;
+	register(client: Client): void;
 }
 
 /**
@@ -231,7 +224,7 @@ export function matchCustomId(
  * // Exact match button
  * export const confirmButton = defineComponent({
  *   id: 'confirm-action',
- *   action: async (interaction, client) => {
+ *   action: async (interaction) => {
  *     await interaction.reply('Confirmed!');
  *   },
  * });
@@ -239,7 +232,7 @@ export function matchCustomId(
  * // Prefix match — trailing dash matches any single suffix segment
  * export const ban = defineComponent({
  *   id: 'ban-',
- *   action: async (interaction, client) => {
+ *   action: async (interaction) => {
  *     const userId = interaction.customId.split('-').pop();
  *     await interaction.guild.members.ban(userId);
  *   },
@@ -249,7 +242,7 @@ export function matchCustomId(
  * export const ticketClose = defineComponent({
  *   id: 'ticket-close-*',
  *   guards: [inCachedGuild],
- *   action: async (interaction, client) => {
+ *   action: async (interaction) => {
  *     const ticketId = interaction.customId.split('-').pop();
  *     await closeTicket(ticketId);
  *   },
@@ -258,7 +251,7 @@ export function matchCustomId(
  * // Regex pattern
  * export const dynamicAction = defineComponent({
  *   id: /^action-(?<type>\w+)-(?<id>\d+)$/,
- *   action: async (interaction, client) => {
+ *   action: async (interaction) => {
  *     // Parse customId as needed
  *   },
  * });
@@ -284,15 +277,13 @@ export function defineComponent<
 			return matchCustomId(customId, id).matched;
 		},
 
-		async execute(
-			interaction: TInput,
-			client: UnicornClient,
-		): Promise<GuardResult<TGuarded>> {
+		async execute(interaction: TInput): Promise<GuardResult<TGuarded>> {
+			const client = interaction.client;
+
 			// Run guards
 			const guardResult = await runGuards(
 				guards as readonly Guard<unknown, unknown>[],
 				interaction,
-				client,
 			);
 
 			if (!guardResult.ok) {
@@ -305,7 +296,7 @@ export function defineComponent<
 
 			// Execute action with error handling
 			const actionResult = await attempt(() =>
-				action(guardResult.value as TGuarded, client),
+				action(guardResult.value as TGuarded),
 			);
 
 			if (isError(actionResult)) {
@@ -318,7 +309,7 @@ export function defineComponent<
 			return guardResult as GuardResult<TGuarded>;
 		},
 
-		register(client: UnicornClient): void {
+		register(client: Client): void {
 			// Safe cast: ComponentSpark satisfies BaseComponentSpark structurally for storage.
 			// Type narrowing happens at runtime via guards in execute().
 			const baseSpark = spark as BaseComponentSpark;
@@ -359,7 +350,7 @@ export function findComponentSpark(
 	components: Map<string, BaseComponentSpark>,
 	componentPatterns: BaseComponentSpark[],
 	customId: string,
-	logger?: UnicornClient['logger'],
+	logger?: ExtendedLogger,
 ): BaseComponentSpark | undefined {
 	// 1. Exact match — O(1) lookup (skip prefix patterns matched by their literal key)
 	const exact = components.get(customId);

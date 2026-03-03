@@ -36,7 +36,7 @@ export function passThroughGuard(): Guard<any, any> {
  *   action: async (interaction) => { ... }
  * });
  *
- * const result = await spark.execute(interaction, client);
+ * const result = await spark.execute(interaction);
  * expect(result.ok).toBe(false);
  * expect(result.reason).toBe('Test failure');
  * ```

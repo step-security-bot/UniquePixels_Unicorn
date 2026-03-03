@@ -1,6 +1,4 @@
 import { describe, expect, test } from 'bun:test';
-import type { UnicornClient } from '@/core/client';
-import { createMockClient } from '@/core/lib/test-helpers';
 import {
 	createGuard,
 	guardFail,
@@ -66,16 +64,15 @@ describe('guardFail', () => {
 
 describe('createGuard', () => {
 	test('creates a synchronous guard function', async () => {
-		const isPositive = createGuard<number, number>((input, _client) => {
+		const isPositive = createGuard<number, number>((input) => {
 			if (input <= 0) {
 				return guardFail('Number must be positive');
 			}
 			return guardPass(input);
 		});
 
-		const client = createMockClient();
-		const passResult = await isPositive(5, client);
-		const failResult = await isPositive(-1, client);
+		const passResult = await isPositive(5);
+		const failResult = await isPositive(-1);
 
 		expect(passResult.ok).toBe(true);
 		expect(failResult.ok).toBe(false);
@@ -83,7 +80,7 @@ describe('createGuard', () => {
 
 	test('creates an async guard function', async () => {
 		const asyncValidator = createGuard<string, string>(
-			async (input, _client) => {
+			async (input) => {
 				await Promise.resolve();
 				if (input.length < 3) {
 					return guardFail('Input too short');
@@ -92,9 +89,8 @@ describe('createGuard', () => {
 			},
 		);
 
-		const client = createMockClient();
-		const passResult = await asyncValidator('hello', client);
-		const failResult = await asyncValidator('ab', client);
+		const passResult = await asyncValidator('hello');
+		const failResult = await asyncValidator('ab');
 
 		expect(passResult.ok).toBe(true);
 		expect(failResult.ok).toBe(false);
@@ -109,16 +105,15 @@ describe('createGuard', () => {
 			role: 'admin';
 		}
 
-		const isAdmin = createGuard<User, AdminUser>((user, _client) => {
+		const isAdmin = createGuard<User, AdminUser>((user) => {
 			if (user.role !== 'admin') {
 				return guardFail('User is not an admin');
 			}
 			return guardPass(user as AdminUser);
 		});
 
-		const client = createMockClient();
-		const adminResult = await isAdmin({ id: '1', role: 'admin' }, client);
-		const userResult = await isAdmin({ id: '2', role: 'user' }, client);
+		const adminResult = await isAdmin({ id: '1', role: 'admin' });
+		const userResult = await isAdmin({ id: '2', role: 'user' });
 
 		expect(adminResult.ok).toBe(true);
 		expect(userResult.ok).toBe(false);
@@ -127,24 +122,22 @@ describe('createGuard', () => {
 
 describe('runGuard', () => {
 	test('runs synchronous guard and returns result', async () => {
-		const guard = createGuard<number, number>((n, _client) => {
+		const guard = createGuard<number, number>((n) => {
 			return n > 0 ? guardPass(n) : guardFail('Must be positive');
 		});
 
-		const client = createMockClient();
-		const result = await runGuard(guard, 5, client);
+		const result = await runGuard(guard, 5);
 
 		expect(result.ok).toBe(true);
 	});
 
 	test('runs async guard and returns promise', async () => {
-		const asyncGuard = createGuard<string, string>(async (s, _client) => {
+		const asyncGuard = createGuard<string, string>(async (s) => {
 			await Promise.resolve();
 			return s.length > 0 ? guardPass(s) : guardFail('Must not be empty');
 		});
 
-		const client = createMockClient();
-		const result = await runGuard(asyncGuard, 'test', client);
+		const result = await runGuard(asyncGuard, 'test');
 
 		expect(result.ok).toBe(true);
 	});
@@ -152,20 +145,18 @@ describe('runGuard', () => {
 
 describe('runGuards', () => {
 	test('runs empty guard array successfully', async () => {
-		const client = createMockClient();
-		const result = await runGuards([], 'input', client);
+		const result = await runGuards([], 'input');
 
 		expect(result.ok).toBe(true);
 		expect((result as { ok: true; value: string }).value).toBe('input');
 	});
 
 	test('runs single guard successfully', async () => {
-		const notEmpty = createGuard<string, string>((s, _client) => {
+		const notEmpty = createGuard<string, string>((s) => {
 			return s.length > 0 ? guardPass(s) : guardFail('Empty');
 		});
 
-		const client = createMockClient();
-		const result = await runGuards([notEmpty], 'hello', client);
+		const result = await runGuards([notEmpty], 'hello');
 
 		expect(result.ok).toBe(true);
 		expect((result as { ok: true; value: string }).value).toBe('hello');
@@ -174,23 +165,22 @@ describe('runGuards', () => {
 	test('runs multiple guards in sequence', async () => {
 		const calls: string[] = [];
 
-		const guard1 = createGuard<number, number>((n, _client) => {
+		const guard1 = createGuard<number, number>((n) => {
 			calls.push('guard1');
 			return guardPass(n);
 		});
 
-		const guard2 = createGuard<number, number>((n, _client) => {
+		const guard2 = createGuard<number, number>((n) => {
 			calls.push('guard2');
 			return guardPass(n);
 		});
 
-		const guard3 = createGuard<number, number>((n, _client) => {
+		const guard3 = createGuard<number, number>((n) => {
 			calls.push('guard3');
 			return guardPass(n);
 		});
 
-		const client = createMockClient();
-		await runGuards([guard1, guard2, guard3], 42, client);
+		await runGuards([guard1, guard2, guard3], 42);
 
 		expect(calls).toEqual(['guard1', 'guard2', 'guard3']);
 	});
@@ -198,23 +188,22 @@ describe('runGuards', () => {
 	test('short-circuits on first failure', async () => {
 		const calls: string[] = [];
 
-		const pass = createGuard<number, number>((n, _client) => {
+		const pass = createGuard<number, number>((n) => {
 			calls.push('pass');
 			return guardPass(n);
 		});
 
-		const fail = createGuard<number, number>((_n, _client) => {
+		const fail = createGuard<number, number>((_n) => {
 			calls.push('fail');
 			return guardFail('Failure');
 		});
 
-		const shouldNotRun = createGuard<number, number>((n, _client) => {
+		const shouldNotRun = createGuard<number, number>((n) => {
 			calls.push('shouldNotRun');
 			return guardPass(n);
 		});
 
-		const client = createMockClient();
-		const result = await runGuards([pass, fail, shouldNotRun], 1, client);
+		const result = await runGuards([pass, fail, shouldNotRun], 1);
 
 		expect(result.ok).toBe(false);
 		expect((result as { ok: false; reason: string }).reason).toBe('Failure');
@@ -233,19 +222,18 @@ describe('runGuards', () => {
 			enriched: true;
 		}
 
-		const validate = createGuard<Input, Validated>((input, _client) => {
+		const validate = createGuard<Input, Validated>((input) => {
 			if (input.value < 0) {
 				return guardFail('Invalid value');
 			}
 			return guardPass({ ...input, validated: true as const });
 		});
 
-		const enrich = createGuard<Validated, Enriched>((input, _client) => {
+		const enrich = createGuard<Validated, Enriched>((input) => {
 			return guardPass({ ...input, enriched: true as const });
 		});
 
-		const client = createMockClient();
-		const result = await runGuards([validate, enrich], { value: 5 }, client);
+		const result = await runGuards([validate, enrich], { value: 5 });
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -257,18 +245,17 @@ describe('runGuards', () => {
 	});
 
 	test('handles async guards in sequence', async () => {
-		const asyncGuard1 = createGuard<number, number>(async (n, _client) => {
+		const asyncGuard1 = createGuard<number, number>(async (n) => {
 			await Promise.resolve();
 			return guardPass(n + 1);
 		});
 
-		const asyncGuard2 = createGuard<number, number>(async (n, _client) => {
+		const asyncGuard2 = createGuard<number, number>(async (n) => {
 			await Promise.resolve();
 			return guardPass(n * 2);
 		});
 
-		const client = createMockClient();
-		const result = await runGuards([asyncGuard1, asyncGuard2], 5, client);
+		const result = await runGuards([asyncGuard1, asyncGuard2], 5);
 
 		expect(result.ok).toBe(true);
 		// Input 5 -> guard1 adds 1 = 6 -> guard2 multiplies by 2 = 12
@@ -276,61 +263,40 @@ describe('runGuards', () => {
 	});
 
 	test('handles mixed sync and async guards', async () => {
-		const syncGuard = createGuard<number, number>((n, _client) => {
+		const syncGuard = createGuard<number, number>((n) => {
 			return guardPass(n + 1);
 		});
 
-		const asyncGuard = createGuard<number, number>(async (n, _client) => {
+		const asyncGuard = createGuard<number, number>(async (n) => {
 			await Promise.resolve();
 			return guardPass(n * 2);
 		});
 
-		const client = createMockClient();
-		const result = await runGuards([syncGuard, asyncGuard, syncGuard], 1, client);
+		const result = await runGuards([syncGuard, asyncGuard, syncGuard], 1);
 
 		expect(result.ok).toBe(true);
 		// Input 1 -> sync adds 1 = 2 -> async multiplies by 2 = 4 -> sync adds 1 = 5
 		expect((result as { ok: true; value: number }).value).toBe(5);
 	});
 
-	test('client is passed to each guard', async () => {
-		const receivedClients: UnicornClient[] = [];
-
-		const captureClient = createGuard<unknown, unknown>((input, client) => {
-			receivedClients.push(client);
-			return guardPass(input);
-		});
-
-		const client = createMockClient();
-		await runGuards([captureClient, captureClient], 'test', client);
-
-		expect(receivedClients).toHaveLength(2);
-		expect(receivedClients[0]).toBe(client);
-		expect(receivedClients[1]).toBe(client);
-	});
-
 	test('handles guard that throws error', async () => {
-		const throwingGuard = createGuard<unknown, unknown>((_input, _client) => {
+		const throwingGuard = createGuard<unknown, unknown>((_input) => {
 			throw new Error('Guard threw an error');
 		});
 
-		const client = createMockClient();
-
-		await expect(runGuards([throwingGuard], 'test', client)).rejects.toThrow(
+		await expect(runGuards([throwingGuard], 'test')).rejects.toThrow(
 			'Guard threw an error',
 		);
 	});
 
 	test('handles async guard rejection', async () => {
 		const rejectingGuard = createGuard<unknown, unknown>(
-			async (_input, _client) => {
+			async (_input) => {
 				throw new Error('Async guard rejected');
 			},
 		);
 
-		const client = createMockClient();
-
-		await expect(runGuards([rejectingGuard], 'test', client)).rejects.toThrow(
+		await expect(runGuards([rejectingGuard], 'test')).rejects.toThrow(
 			'Async guard rejected',
 		);
 	});
@@ -343,24 +309,20 @@ describe('type narrowing scenarios', () => {
 			| { kind: 'rectangle'; width: number; height: number };
 		type Circle = Extract<Shape, { kind: 'circle' }>;
 
-		const isCircle = createGuard<Shape, Circle>((shape, _client) => {
+		const isCircle = createGuard<Shape, Circle>((shape) => {
 			if (shape.kind !== 'circle') {
 				return guardFail('Not a circle');
 			}
 			return guardPass(shape);
 		});
 
-		const client = createMockClient();
-
 		const circleResult = await runGuards(
 			[isCircle],
 			{ kind: 'circle', radius: 5 },
-			client,
 		);
 		const rectResult = await runGuards(
 			[isCircle],
 			{ kind: 'rectangle', width: 10, height: 20 },
-			client,
 		);
 
 		expect(circleResult.ok).toBe(true);
@@ -370,18 +332,16 @@ describe('type narrowing scenarios', () => {
 	test('narrows nullable types', async () => {
 		type MaybeString = string | null | undefined;
 
-		const notNullish = createGuard<MaybeString, string>((value, _client) => {
+		const notNullish = createGuard<MaybeString, string>((value) => {
 			if (value == null) {
 				return guardFail('Value is null or undefined');
 			}
 			return guardPass(value);
 		});
 
-		const client = createMockClient();
-
-		const stringResult = await runGuards([notNullish], 'hello', client);
-		const nullResult = await runGuards([notNullish], null, client);
-		const undefinedResult = await runGuards([notNullish], undefined, client);
+		const stringResult = await runGuards([notNullish], 'hello');
+		const nullResult = await runGuards([notNullish], null);
+		const undefinedResult = await runGuards([notNullish], undefined);
 
 		expect(stringResult.ok).toBe(true);
 		expect(nullResult.ok).toBe(false);

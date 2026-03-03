@@ -182,7 +182,7 @@ This works because:
 1. `satisfies UnicornConfig` validates the shape without widening the type -- literal keys like `'admin'` and `'logs'` are preserved
 2. `parseConfig` uses `const T extends UnicornConfig` to capture the exact literal type
 3. `ParsedConfig<T>` maps each key in `T['ids']` to `Snowflake`, preserving the key names while transforming the value types
-4. The `UnicornClientRegistry` module augmentation feeds your config's type into `UnicornClient`, so `client.config` is correctly typed everywhere without any additional annotations
+4. The `UnicornClientRegistry` augmentation feeds your config's type through the framework's `augmentation.d.ts` into `Client`, so `client.config` is correctly typed everywhere without any additional annotations
 
 ## Health Check Server
 
@@ -213,7 +213,7 @@ Configuration is parsed at the very beginning of the startup sequence, before th
 1. Create logger
 2. Parse config        <-- validation happens here, throws on failure
 3. Create Discord client with parsed intents/partials/presence
-4. Initialize UnicornClient
+4. Initialize client
 5. Load sparks
 6. Register commands
 7. Start health check server (if configured)

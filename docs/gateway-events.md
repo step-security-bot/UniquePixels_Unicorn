@@ -22,7 +22,7 @@ export const ready = defineGatewayEvent({
 });
 ```
 
-The `action` receives the first argument of the event and the `UnicornClient` instance.
+The `action` receives the first argument of the event and the `Client` instance. The client parameter is kept for gateway events because some events pass arguments that don't have a `.client` property — `debug` and `warn` emit a `string`, while `error` emits an `Error` object.
 
 ## Event Types
 
@@ -106,7 +106,7 @@ Runtime errors in gateway event actions are caught and logged but never crash th
 Event fires
   -> register() handler catches top-level errors
     -> execute()
-      -> runGuards(guards, arg, client)
+      -> runGuards(guards, arg)
       -> if guards fail: log debug, skip action
       -> action(narrowedArg, client)
       -> if action throws: log error (don't crash)

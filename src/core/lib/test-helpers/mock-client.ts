@@ -1,8 +1,7 @@
 /** biome-ignore-all lint/suspicious/noEmptyBlockStatements: Test mocks */
 import { mock } from 'bun:test';
 import type { CronJob } from 'cron';
-import { Collection } from 'discord.js';
-import type { UnicornClient } from '@/core/client';
+import { type Client, Collection } from 'discord.js';
 import type { BaseCommandSpark } from '@/core/sparks/command';
 import type { BaseComponentSpark } from '@/core/sparks/component';
 
@@ -15,6 +14,7 @@ interface MockClientOverrides {
 	once?: ReturnType<typeof mock>;
 	isReady?: boolean;
 	ws?: { ping: number };
+	config?: Partial<Client['config']>;
 	logger?: Partial<{
 		debug: ReturnType<typeof mock>;
 		info: ReturnType<typeof mock>;
@@ -26,14 +26,14 @@ interface MockClientOverrides {
 }
 
 /**
- * Creates a mock UnicornClient for testing.
+ * Creates a mock Client for testing.
  *
- * Returns a mock client with all required UnicornClient properties populated with
+ * Returns a mock client with all required augmented properties populated with
  * mock functions and empty collections. Useful for unit testing sparks and guards
  * without requiring a real Discord.js client.
  *
  * @param overrides - Optional overrides for specific client properties
- * @returns A mock UnicornClient instance
+ * @returns A mock Client instance
  *
  * @example
  * ```ts
@@ -46,9 +46,19 @@ interface MockClientOverrides {
  * expect(client.isReady()).toBe(true);
  * ```
  */
-export function createMockClient(
-	overrides: MockClientOverrides = {},
-): UnicornClient {
+export function createMockClient(overrides: MockClientOverrides = {}): Client {
+	const config = overrides.config ?? {
+		discord: {
+			appID: '000000000000000000',
+			apiToken: 'mock-token',
+			intents: [],
+			enabledPartials: [],
+			enforceNonce: false,
+		},
+		misc: {},
+		ids: { role: {}, channel: {}, emoji: {} },
+	};
+
 	return {
 		commands: overrides.commands ?? new Collection(),
 		components: overrides.components ?? new Collection(),
@@ -59,6 +69,7 @@ export function createMockClient(
 		isReady: mock(() => overrides.isReady ?? true),
 		destroy: mock(() => {}),
 		ws: overrides.ws ?? { ping: 0 },
+		config,
 		logger: {
 			debug: overrides.logger?.debug ?? mock(() => {}),
 			info: overrides.logger?.info ?? mock(() => {}),
@@ -68,5 +79,5 @@ export function createMockClient(
 				overrides.logger?.registerDebugSource ?? mock(() => mock(() => {})),
 			shutdown: overrides.logger?.shutdown ?? mock(async () => {}),
 		},
-	} as unknown as UnicornClient;
+	} as unknown as Client;
 }

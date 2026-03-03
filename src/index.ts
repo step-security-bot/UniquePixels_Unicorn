@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import process from 'node:process';
 import { Client, REST, Routes } from 'discord.js';
-import { initializeUnicornClient } from '@/core/client';
+import { initializeClient } from '@/core/client';
 import { parseConfig } from '@/core/configuration';
 import { createLogger, type ExtendedLogger } from '@/core/lib/logger';
 import {
@@ -21,7 +21,7 @@ import { createShutdownHandler } from './shutdown';
  * 1. Create logger
  * 2. Parse and validate configuration
  * 3. Initialize Discord.js Client with intents and partials
- * 4. Attach logger, config, and collections to client (UnicornClient)
+ * 4. Attach logger, config, and collections to client
  * 5. Load all sparks from src/sparks directory
  * 6. Register slash commands with Discord API
  * 7. Login to Discord
@@ -54,8 +54,8 @@ const discordClient: Client = new Client({
 	enforceNonce: config.discord.enforceNonce,
 });
 
-// Initialize UnicornClient - attaches logger, config, and collections
-const client = initializeUnicornClient(discordClient, logger, config);
+// Initialize client - attaches logger, config, and collections
+const client = initializeClient(discordClient, logger, config);
 
 // Register Discord.js debug/warn/error events through the logger with token redaction
 logger.registerDebugSource({

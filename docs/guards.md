@@ -2,7 +2,7 @@
 
 Guards are composable validation functions that run before a spark's action. They can validate conditions, check permissions, enforce rate limits, and narrow TypeScript types so your action receives a more specific type than the raw input.
 
-Every guard receives `(input, client)` and returns one of:
+Every guard receives `(input)` and returns one of:
 
 - `{ ok: true, value }` -- validation passed; `value` is the (possibly narrowed) input
 - `{ ok: false, reason }` -- validation failed; `reason` is a human-readable explanation
@@ -46,7 +46,7 @@ export const serverInfo = defineCommand({
     .setName('server-info')
     .setDescription('Show server information'),
   guards: [inCachedGuild],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     // interaction.guild, interaction.member, interaction.guildId are all guaranteed
     await interaction.reply(`Server: ${interaction.guild.name} (${interaction.guild.memberCount} members)`);
   },
@@ -70,7 +70,7 @@ export const purge = defineCommand({
     .setDescription('Delete messages in bulk')
     .addIntegerOption(opt => opt.setName('count').setDescription('Number of messages').setRequired(true)),
   guards: [inCachedGuild, hasPermission(PermissionFlagsBits.ManageMessages)],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     const count = interaction.options.getInteger('count', true);
     await interaction.channel.bulkDelete(count);
     await interaction.reply({ content: `Deleted ${count} messages.`, ephemeral: true });
@@ -106,7 +106,7 @@ export const embed = defineCommand({
     .setName('embed')
     .setDescription('Send a rich embed'),
   guards: [inCachedGuild, botHasPermission(PermissionFlagsBits.EmbedLinks)],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     await interaction.reply({ embeds: [/* ... */] });
   },
 });
@@ -128,7 +128,7 @@ export const threadOnly = defineCommand({
     .setName('thread-only')
     .setDescription('Only works in threads'),
   guards: [channelType(ChannelType.PublicThread, ChannelType.PrivateThread)],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     await interaction.reply('This is a thread!');
   },
 });
@@ -150,7 +150,7 @@ export const deploy = defineCommand({
     .setName('deploy')
     .setDescription('Deploy slash commands'),
   guards: [isUser(['123456789012345678', '987654321098765432'])],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     await interaction.reply({ content: 'Deploying commands...', ephemeral: true });
   },
 });
@@ -221,7 +221,7 @@ export const generate = defineCommand({
     .setName('generate')
     .setDescription('Generate something expensive'),
   guards: [rateLimit({ limit: 3, window: 30_000 })],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     await interaction.reply('Generating...');
   },
 });
@@ -246,7 +246,7 @@ export const announce = defineCommand({
       keyFn: (interaction) => `${interaction.guildId}:${interaction.user.id}`,
     }),
   ],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     await interaction.reply('Announcement sent!');
   },
 });
@@ -276,7 +276,7 @@ export const announce = defineCommand({
     .setName('announce')
     .setDescription('Post an announcement to the system channel'),
   guards: [inCachedGuild, hasSystemChannel()],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     // interaction.guild.systemChannel is guaranteed to exist
     await interaction.guild.systemChannel.send('Important announcement!');
     await interaction.reply({ content: 'Announcement posted!', ephemeral: true });
@@ -320,7 +320,7 @@ export const communityUpdate = defineCommand({
     .setName('community-update')
     .setDescription('Post to the public updates channel'),
   guards: [inCachedGuild, hasPublicUpdatesChannel()],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     await interaction.guild.publicUpdatesChannel.send('New community update!');
     await interaction.reply({ content: 'Update posted!', ephemeral: true });
   },
@@ -362,7 +362,7 @@ export const updateRules = defineCommand({
     .setName('update-rules')
     .setDescription('Post updated rules'),
   guards: [inCachedGuild, hasRulesChannel()],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     await interaction.guild.rulesChannel.send('Rules have been updated!');
     await interaction.reply({ content: 'Rules updated!', ephemeral: true });
   },
@@ -388,7 +388,7 @@ export const safetyAlert = defineCommand({
     .setName('safety-alert')
     .setDescription('Post a safety alert'),
   guards: [inCachedGuild, hasSafetyAlertsChannel()],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     await interaction.guild.safetyAlertsChannel.send('Safety alert posted.');
     await interaction.reply({ content: 'Alert sent!', ephemeral: true });
   },
@@ -439,14 +439,14 @@ export const channel = defineCommandGroup({
   subcommands: {
     info: {
       // No extra guards — anyone in the guild can view info
-      action: async (interaction, client) => {
+      action: async (interaction) => {
         await interaction.reply(`Channel: ${interaction.channel.name}`);
       },
     },
     lock: {
       // Only moderators can lock
       guards: [hasPermission(PermissionFlagsBits.ManageChannels)],
-      action: async (interaction, client) => {
+      action: async (interaction) => {
         await interaction.reply('Channel locked.');
       },
     },
@@ -456,7 +456,7 @@ export const channel = defineCommandGroup({
         hasPermission(PermissionFlagsBits.Administrator),
         rateLimit({ limit: 1, window: 300_000 }),
       ],
-      action: async (interaction, client) => {
+      action: async (interaction) => {
         await interaction.reply('Channel will be recreated.');
       },
     },
@@ -491,7 +491,7 @@ export const kick = defineCommand<GuildInteraction<ChatInputCommandInteraction>>
     .setName('kick')
     .setDescription('Kick a member'),
   guards: [inCachedGuild, hasPermission(PermissionFlagsBits.KickMembers)],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     // interaction.guild, interaction.member, etc. are all non-null
     await interaction.guild.members.kick(interaction.options.getUser('target', true));
   },
@@ -507,7 +507,7 @@ import { type GuildInteraction, inCachedGuild } from '@/guards/built-in';
 
 const mySubcommand: SubcommandHandler<GuildInteraction<ChatInputCommandInteraction>> = {
   guards: [inCachedGuild],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     // interaction.guild guaranteed non-null
   },
 };
@@ -528,7 +528,7 @@ import type { Interaction } from 'discord.js';
 import { createGuard, type Guard, guardFail, guardPass } from '@/core/guards';
 
 export const duringBusinessHours: Guard<Interaction, Interaction> = createGuard(
-  (interaction, _client) => {
+  (interaction) => {
     const hour = new Date().getUTCHours();
     if (hour < 9 || hour >= 17) {
       return guardFail('This command is only available during business hours (09:00-17:00 UTC).');
@@ -553,7 +553,7 @@ type InteractionWithBoostedMember = Interaction & {
 export const isServerBooster: Guard<
   Interaction & { member: GuildMember },
   InteractionWithBoostedMember
-> = createGuard((interaction, _client) => {
+> = createGuard((interaction) => {
   if (!interaction.member.premiumSince) {
     return guardFail('This command is only available to server boosters.');
   }
@@ -569,7 +569,7 @@ export const boosterPerk = defineCommand({
     .setName('booster-perk')
     .setDescription('A perk for server boosters'),
   guards: [inCachedGuild, isServerBooster],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     await interaction.reply(`Boosting since ${interaction.member.premiumSince.toDateString()}!`);
   },
 });
@@ -584,7 +584,7 @@ import type { Interaction } from 'discord.js';
 import { createGuard, type Guard, guardFail, guardPass } from '@/core/guards';
 
 export function requireOption(name: string): Guard<Interaction, Interaction> {
-  return createGuard((interaction, _client) => {
+  return createGuard((interaction) => {
     if (!interaction.isChatInputCommand()) {
       return guardFail('Not a command interaction.');
     }
@@ -608,8 +608,8 @@ This means guard failure reasons should be user-facing messages. Write them as c
 
 ```text
 Interaction arrives
-  -> spark.execute(interaction, client)
-    -> runGuards(guards, interaction, client)
+  -> spark.execute(interaction)
+    -> runGuards(guards, interaction)
     -> Guard returns { ok: false, reason: "You need the following permission(s): ManageMessages" }
   -> result.ok is false
   -> interaction has not been replied to
@@ -622,7 +622,7 @@ Interaction arrives
 
 | Type | Description |
 |---|---|
-| `Guard<TInput, TOutput>` | A guard function `(input, client) => GuardResult<TOutput>` |
+| `Guard<TInput, TOutput>` | A guard function `(input) => GuardResult<TOutput>` |
 | `GuardResult<T>` | `{ ok: true, value: T }` or `{ ok: false, reason: string }` |
 | `GuardOutput<G>` | Extracts the output type from a `Guard` type |
 | `GuildInteraction<T>` | Interaction with `guild`, `guildId`, `member`, and `channel` guaranteed |
@@ -635,8 +635,8 @@ Interaction arrives
 | `createGuard(fn)` | Wraps a guard function with proper type inference |
 | `guardPass(value)` | Creates a successful `GuardResult` |
 | `guardFail(reason)` | Creates a failed `GuardResult` |
-| `runGuard(guard, input, client)` | Runs a single guard |
-| `runGuards(guards, input, client)` | Runs guards sequentially, short-circuiting on failure |
+| `runGuard(guard, input)` | Runs a single guard |
+| `runGuards(guards, input)` | Runs guards sequentially, short-circuiting on failure |
 | `cleanupRateLimits()` | Clears expired rate limit entries from the in-memory store |
 
 ### Built-in Guards

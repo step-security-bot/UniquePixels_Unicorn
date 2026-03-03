@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'bun:test';
 import { Client, Collection, GatewayIntentBits } from 'discord.js';
 import type { ExtendedLogger } from '@/core/lib/logger';
-import { type UnicornClient, initializeUnicornClient, isUnicornClient } from './index';
+import { initializeClient, isInitializedClient } from './index';
 
 // ─── Test Helpers ────────────────────────────────────────────────
 
@@ -20,7 +20,7 @@ function createMockLogger(): ExtendedLogger {
 	} as unknown as ExtendedLogger;
 }
 
-function createMockConfig(): UnicornClient['config'] {
+function createMockConfig(): Client['config'] {
 	return {
 		discord: {
 			appID: '123456789012345678',
@@ -31,18 +31,18 @@ function createMockConfig(): UnicornClient['config'] {
 		},
 		misc: {},
 		ids: { role: {}, channel: {}, emoji: {} },
-	} as unknown as UnicornClient['config'];
+	} as unknown as Client['config'];
 }
 
 // ─── Tests ───────────────────────────────────────────────────────
 
-describe('initializeUnicornClient', () => {
+describe('initializeClient', () => {
 	test('attaches logger to client', () => {
 		const client = createRealClient();
 		const logger = createMockLogger();
 		const config = createMockConfig();
 
-		const result = initializeUnicornClient(client, logger, config);
+		const result = initializeClient(client, logger, config);
 
 		expect(result.logger).toBe(logger);
 	});
@@ -52,14 +52,14 @@ describe('initializeUnicornClient', () => {
 		const logger = createMockLogger();
 		const config = createMockConfig();
 
-		const result = initializeUnicornClient(client, logger, config);
+		const result = initializeClient(client, logger, config);
 
 		expect(result.config).toBe(config);
 	});
 
 	test('creates empty commands Collection', () => {
 		const client = createRealClient();
-		const result = initializeUnicornClient(
+		const result = initializeClient(
 			client,
 			createMockLogger(),
 			createMockConfig(),
@@ -71,7 +71,7 @@ describe('initializeUnicornClient', () => {
 
 	test('creates empty components Collection', () => {
 		const client = createRealClient();
-		const result = initializeUnicornClient(
+		const result = initializeClient(
 			client,
 			createMockLogger(),
 			createMockConfig(),
@@ -83,7 +83,7 @@ describe('initializeUnicornClient', () => {
 
 	test('creates empty componentPatterns array', () => {
 		const client = createRealClient();
-		const result = initializeUnicornClient(
+		const result = initializeClient(
 			client,
 			createMockLogger(),
 			createMockConfig(),
@@ -95,7 +95,7 @@ describe('initializeUnicornClient', () => {
 
 	test('creates empty scheduledJobs Collection', () => {
 		const client = createRealClient();
-		const result = initializeUnicornClient(
+		const result = initializeClient(
 			client,
 			createMockLogger(),
 			createMockConfig(),
@@ -107,7 +107,7 @@ describe('initializeUnicornClient', () => {
 
 	test('returns the same client reference (augmented)', () => {
 		const client = createRealClient();
-		const result = initializeUnicornClient(
+		const result = initializeClient(
 			client,
 			createMockLogger(),
 			createMockConfig(),
@@ -118,31 +118,31 @@ describe('initializeUnicornClient', () => {
 	});
 });
 
-describe('isUnicornClient', () => {
-	test('returns true for initialized UnicornClient', () => {
+describe('isInitializedClient', () => {
+	test('returns true for initialized Client', () => {
 		const client = createRealClient();
-		const unicorn = initializeUnicornClient(
+		const initialized = initializeClient(
 			client,
 			createMockLogger(),
 			createMockConfig(),
 		);
 
-		expect(isUnicornClient(unicorn)).toBe(true);
+		expect(isInitializedClient(initialized)).toBe(true);
 	});
 
 	test('returns false for plain Discord.js Client', () => {
 		const client = createRealClient();
 
-		expect(isUnicornClient(client)).toBe(false);
+		expect(isInitializedClient(client)).toBe(false);
 	});
 
 	test('returns false for partially-augmented client (only logger)', () => {
-		const client = createRealClient() as unknown as UnicornClient;
+		const client = createRealClient() as unknown as Client;
 		// Only set logger — missing config, commands, componentPatterns
 		(client as unknown as Record<string, unknown>)['logger'] =
 			createMockLogger();
 
-		expect(isUnicornClient(client)).toBe(false);
+		expect(isInitializedClient(client)).toBe(false);
 	});
 
 	test('returns false when logger is not an object', () => {
@@ -154,7 +154,7 @@ describe('isUnicornClient', () => {
 		client['componentPatterns'] = [];
 		client['scheduledJobs'] = new Collection();
 
-		expect(isUnicornClient(client as unknown as Client)).toBe(false);
+		expect(isInitializedClient(client as unknown as Client)).toBe(false);
 	});
 
 	test('returns false when logger lacks ExtendedLogger methods', () => {
@@ -166,11 +166,11 @@ describe('isUnicornClient', () => {
 		client['componentPatterns'] = [];
 		client['scheduledJobs'] = new Collection();
 
-		expect(isUnicornClient(client as unknown as Client)).toBe(false);
+		expect(isInitializedClient(client as unknown as Client)).toBe(false);
 	});
 
 	test('returns false for partially-augmented client (missing componentPatterns)', () => {
-		const client = createRealClient() as unknown as UnicornClient;
+		const client = createRealClient() as unknown as Client;
 		(client as unknown as Record<string, unknown>)['logger'] =
 			createMockLogger();
 		(client as unknown as Record<string, unknown>)['config'] =
@@ -178,6 +178,30 @@ describe('isUnicornClient', () => {
 		(client as unknown as Record<string, unknown>)['commands'] =
 			new Collection();
 
-		expect(isUnicornClient(client)).toBe(false);
+		expect(isInitializedClient(client)).toBe(false);
+	});
+
+	test('returns false when collections are wrong types', () => {
+		const client = createRealClient() as unknown as Record<string, unknown>;
+		client['logger'] = createMockLogger();
+		client['config'] = createMockConfig();
+		client['commands'] = new Map(); // wrong type — should be Collection
+		client['components'] = new Collection();
+		client['componentPatterns'] = [];
+		client['scheduledJobs'] = new Collection();
+
+		expect(isInitializedClient(client as unknown as Client)).toBe(false);
+	});
+
+	test('returns false when componentPatterns is not an array', () => {
+		const client = createRealClient() as unknown as Record<string, unknown>;
+		client['logger'] = createMockLogger();
+		client['config'] = createMockConfig();
+		client['commands'] = new Collection();
+		client['components'] = new Collection();
+		client['componentPatterns'] = 'not-an-array';
+		client['scheduledJobs'] = new Collection();
+
+		expect(isInitializedClient(client as unknown as Client)).toBe(false);
 	});
 });

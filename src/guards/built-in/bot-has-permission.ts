@@ -22,7 +22,7 @@ import { createGuard, type Guard, guardFail, guardPass } from '@/core/guards';
  * export const embedCommand = defineCommand({
  *   command: builder,
  *   guards: [inCachedGuild, botHasPermission(PermissionFlagsBits.EmbedLinks)],
- *   action: async (interaction, client) => { // ...
+ *   action: async (interaction) => { // ...
  *   },
  * });
  * ```
@@ -33,7 +33,7 @@ export function botHasPermission<
 	const permBits = new PermissionsBitField(permissions);
 	const permNames = permBits.toArray().join(', ');
 
-	return createGuard((input, _client) => {
+	return createGuard((input) => {
 		const { guild, channel } = input;
 		const botMember = guild.members.me;
 

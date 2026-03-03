@@ -18,7 +18,7 @@ import { createGuard, type Guard, guardFail, guardPass } from '@/core/guards';
  * export const modCommand = defineCommand({
  *   command: builder,
  *   guards: [inCachedGuild, hasPermission(PermissionFlagsBits.ManageMessages)],
- *   action: async (interaction, client) => { // ...
+ *   action: async (interaction) => { // ...
  *   },
  * });
  * ```
@@ -30,7 +30,7 @@ export function hasPermission<T extends { member: GuildMember }>(
 	const permBits = new PermissionsBitField(permissions);
 	const permNames = permBits.toArray().join(', ');
 
-	return createGuard((input, _client) => {
+	return createGuard((input) => {
 		const { member } = input;
 
 		if (!member.permissions.has(permissions)) {

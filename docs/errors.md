@@ -111,10 +111,10 @@ Spark actions use `attempt()` for Result-based error handling. Errors are logged
 ```ts
 import { attempt, isError } from '@/core/lib/attempt';
 
-action: async (interaction, client) => {
+action: async (interaction) => {
   const result = await attempt(() => fetchUserData(interaction.user.id));
   if (isError(result)) {
-    client.logger.error({ err: result.error, user: interaction.user.id }, 'Failed to fetch user');
+    interaction.client.logger.error({ err: result.error, user: interaction.user.id }, 'Failed to fetch user');
     await interaction.reply({ content: 'Something went wrong.', flags: MessageFlags.Ephemeral });
     return;
   }

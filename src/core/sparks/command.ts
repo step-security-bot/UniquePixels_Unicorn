@@ -1,12 +1,12 @@
 import type {
 	AutocompleteInteraction,
 	ChatInputCommandInteraction,
+	Client,
 	CommandInteraction,
 	ContextMenuCommandBuilder,
 	SlashCommandBuilder,
 	SlashCommandSubcommandsOnlyBuilder,
 } from 'discord.js';
-import type { UnicornClient } from '@/core/client';
 import type { Guard, GuardResult } from '@/core/guards';
 import { runGuards } from '@/core/guards';
 import { attempt, isError } from '@/core/lib/attempt';
@@ -22,11 +22,10 @@ export type CommandBuilder =
 
 /**
  * Action function for commands.
- * Receives the (possibly narrowed) interaction and the client.
+ * Receives the (possibly narrowed) interaction. Access client via `interaction.client`.
  */
 export type CommandAction<T = ChatInputCommandInteraction> = (
 	interaction: T,
-	client: UnicornClient,
 ) => void | Promise<void>;
 
 /**
@@ -51,10 +50,7 @@ export interface CommandWithAutocompleteOptions<
 	TGuarded extends ChatInputCommandInteraction = ChatInputCommandInteraction,
 > extends CommandOptions<TGuarded> {
 	/** Handler for autocomplete interactions */
-	autocomplete: (
-		interaction: AutocompleteInteraction,
-		client: UnicornClient,
-	) => void | Promise<void>;
+	autocomplete: (interaction: AutocompleteInteraction) => void | Promise<void>;
 }
 
 /**
@@ -67,7 +63,6 @@ export interface BaseCommandSpark {
 	readonly command: CommandBuilder;
 	readonly autocomplete?: (
 		interaction: AutocompleteInteraction,
-		client: UnicornClient,
 	) => void | Promise<void>;
 
 	/**
@@ -77,19 +72,13 @@ export interface BaseCommandSpark {
 	 * and `ContextMenuCommandInteraction`). Callers must ensure the interaction type
 	 * matches the command builder — the router guarantees this via unique command names.
 	 */
-	execute(
-		interaction: CommandInteraction,
-		client: UnicornClient,
-	): Promise<GuardResult<unknown>>;
+	execute(interaction: CommandInteraction): Promise<GuardResult<unknown>>;
 
 	/** Execute autocomplete handler */
-	executeAutocomplete?(
-		interaction: AutocompleteInteraction,
-		client: UnicornClient,
-	): Promise<void>;
+	executeAutocomplete?(interaction: AutocompleteInteraction): Promise<void>;
 
 	/** Register this spark with the client */
-	register(client: UnicornClient): void;
+	register(client: Client): void;
 }
 
 /**
@@ -106,7 +95,6 @@ export interface CommandSpark<
 	readonly action: CommandAction<TGuarded>;
 	readonly autocomplete?: (
 		interaction: AutocompleteInteraction,
-		client: UnicornClient,
 	) => void | Promise<void>;
 
 	/**
@@ -116,19 +104,13 @@ export interface CommandSpark<
 	 * and `ContextMenuCommandInteraction`). The action receives `TGuarded` after
 	 * runtime validation that the interaction type matches the command builder.
 	 */
-	execute(
-		interaction: CommandInteraction,
-		client: UnicornClient,
-	): Promise<GuardResult<TGuarded>>;
+	execute(interaction: CommandInteraction): Promise<GuardResult<TGuarded>>;
 
 	/** Execute autocomplete handler */
-	executeAutocomplete?(
-		interaction: AutocompleteInteraction,
-		client: UnicornClient,
-	): Promise<void>;
+	executeAutocomplete?(interaction: AutocompleteInteraction): Promise<void>;
 
 	/** Register this spark with the client */
-	register(client: UnicornClient): void;
+	register(client: Client): void;
 }
 
 /**
@@ -141,8 +123,8 @@ export interface CommandSpark<
  *   command: new SlashCommandBuilder()
  *     .setName('ping')
  *     .setDescription('Check latency'),
- *   action: async (interaction, client) => {
- *     await interaction.reply(`Pong! ${client.ws.ping}ms`);
+ *   action: async (interaction) => {
+ *     await interaction.reply(`Pong! ${interaction.client.ws.ping}ms`);
  *   },
  * });
  *
@@ -152,7 +134,7 @@ export interface CommandSpark<
  *     .setName('kick')
  *     .setDescription('Kick a member'),
  *   guards: [inCachedGuild, hasPermission(PermissionFlagsBits.KickMembers)],
- *   action: async (interaction, client) => {
+ *   action: async (interaction) => {
  *     // interaction.guild is guaranteed to exist
  *     await interaction.guild.members.kick(targetId);
  *   },
@@ -173,8 +155,9 @@ export function defineCommand<
 
 		async execute(
 			interaction: CommandInteraction,
-			client: UnicornClient,
 		): Promise<GuardResult<TGuarded>> {
+			const client = interaction.client;
+
 			// Validate interaction type matches command builder.
 			// 'type' is present on ContextMenuCommandBuilder but not SlashCommandBuilder.
 			// Optional chaining safely skips the check for test mocks lacking these methods.
@@ -194,7 +177,6 @@ export function defineCommand<
 			const guardResult = await runGuards(
 				guards as readonly Guard<unknown, unknown>[],
 				interaction,
-				client,
 			);
 
 			if (!guardResult.ok) {
@@ -207,7 +189,7 @@ export function defineCommand<
 
 			// Execute action with error handling
 			const actionResult = await attempt(() =>
-				action(guardResult.value as TGuarded, client),
+				action(guardResult.value as TGuarded),
 			);
 
 			if (isError(actionResult)) {
@@ -220,7 +202,7 @@ export function defineCommand<
 			return guardResult as GuardResult<TGuarded>;
 		},
 
-		register(client: UnicornClient): void {
+		register(client: Client): void {
 			// Safe cast: CommandSpark satisfies BaseCommandSpark structurally for storage.
 			// Type narrowing happens at runtime via guards in execute().
 			client.commands.set(command.name, spark as BaseCommandSpark);
@@ -243,12 +225,12 @@ export function defineCommand<
  *     .addStringOption(opt =>
  *       opt.setName('query').setDescription('Search query').setAutocomplete(true)
  *     ),
- *   autocomplete: async (interaction, client) => {
+ *   autocomplete: async (interaction) => {
  *     const query = interaction.options.getFocused();
  *     const results = await searchDatabase(query);
  *     await interaction.respond(results.slice(0, 25));
  *   },
- *   action: async (interaction, client) => {
+ *   action: async (interaction) => {
  *     const query = interaction.options.getString('query', true);
  *     // Handle the search
  *   },
@@ -266,21 +248,18 @@ export function defineCommandWithAutocomplete<
 
 		async executeAutocomplete(
 			interaction: AutocompleteInteraction,
-			client: UnicornClient,
 		): Promise<void> {
-			const result = await attempt(() =>
-				options.autocomplete(interaction, client),
-			);
+			const result = await attempt(() => options.autocomplete(interaction));
 
 			if (isError(result)) {
-				client.logger.warn(
+				interaction.client.logger.warn(
 					{ err: result.error, command: base.id },
 					'Autocomplete handler failed',
 				);
 			}
 		},
 
-		register(client: UnicornClient): void {
+		register(client: Client): void {
 			client.commands.set(base.command.name, spark as BaseCommandSpark);
 			client.logger.debug({ command: base.command.name }, 'Registered command');
 		},

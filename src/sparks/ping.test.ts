@@ -26,9 +26,10 @@ describe('ping spark', () => {
 			reply,
 			fetchReply: mock(async () => ({ createdTimestamp: 1000042 })),
 			editReply,
+			client,
 		});
 
-		const result = await ping.execute(interaction, client);
+		const result = await ping.execute(interaction);
 
 		expect(result.ok).toBe(true);
 		expect(reply).toHaveBeenCalledWith({ content: 'Pinging...' });

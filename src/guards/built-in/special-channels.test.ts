@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test';
 import type { Guild, GuildTextBasedChannel } from 'discord.js';
 import { PermissionsBitField } from 'discord.js';
 import type { GuardResult } from '@/core/guards';
-import { createMockClient } from '@/core/lib/test-helpers';
 import {
 	hasPublicUpdatesChannel,
 	hasRulesChannel,
@@ -84,11 +83,10 @@ const guardTestCases = [
 for (const { name, factory, channelKey, channelName } of guardTestCases) {
 	describe(name, () => {
 		test('passes when channel exists and bot has permission', async () => {
-			const client = createMockClient();
 			const input = createMockGuildInput(channelKey, true, true, true);
 			const guard = factory();
 
-			const result = await guard(input, client);
+			const result = await guard(input);
 
 			expect(result.ok).toBe(true);
 			if (result.ok) {
@@ -97,11 +95,10 @@ for (const { name, factory, channelKey, channelName } of guardTestCases) {
 		});
 
 		test('fails when channel is not configured', async () => {
-			const client = createMockClient();
 			const input = createMockGuildInput(channelKey, false, true, true);
 			const guard = factory();
 
-			const result = await guard(input, client);
+			const result = await guard(input);
 
 			expect(result.ok).toBe(false);
 			const reason = getFailureReason(result);
@@ -110,11 +107,10 @@ for (const { name, factory, channelKey, channelName } of guardTestCases) {
 		});
 
 		test('fails when bot lacks SendMessages permission', async () => {
-			const client = createMockClient();
 			const input = createMockGuildInput(channelKey, true, false, true);
 			const guard = factory();
 
-			const result = await guard(input, client);
+			const result = await guard(input);
 
 			expect(result.ok).toBe(false);
 			const reason = getFailureReason(result);
@@ -123,11 +119,10 @@ for (const { name, factory, channelKey, channelName } of guardTestCases) {
 		});
 
 		test('fails when bot member is not available', async () => {
-			const client = createMockClient();
 			const input = createMockGuildInput(channelKey, true, true, false);
 			const guard = factory();
 
-			const result = await guard(input, client);
+			const result = await guard(input);
 
 			expect(result.ok).toBe(false);
 			expect(getFailureReason(result)).toContain('Unable to verify');
@@ -138,7 +133,6 @@ for (const { name, factory, channelKey, channelName } of guardTestCases) {
 // Integration tests
 describe('special channel guards with different input types', () => {
 	test('works with interaction-like input', async () => {
-		const client = createMockClient();
 		const interaction = {
 			guild: {
 				systemChannel: { id: '123' } as GuildTextBasedChannel,
@@ -153,13 +147,12 @@ describe('special channel guards with different input types', () => {
 			channel: {},
 		};
 
-		const result = await hasSystemChannel()(interaction, client);
+		const result = await hasSystemChannel()(interaction);
 
 		expect(result.ok).toBe(true);
 	});
 
 	test('works with gateway event input', async () => {
-		const client = createMockClient();
 		const event = {
 			guild: {
 				rulesChannel: { id: '789' } as GuildTextBasedChannel,
@@ -172,7 +165,7 @@ describe('special channel guards with different input types', () => {
 			} as unknown as Guild,
 		};
 
-		const result = await hasRulesChannel()(event, client);
+		const result = await hasRulesChannel()(event);
 
 		expect(result.ok).toBe(true);
 	});

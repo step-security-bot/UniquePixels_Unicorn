@@ -1,6 +1,6 @@
 import { describe, expect, mock, spyOn, test } from 'bun:test';
 import { CronJob } from 'cron';
-import type { UnicornClient } from '@/core/client';
+import type { Client } from 'discord.js';
 import { createMockClient } from '@/core/lib/test-helpers';
 import {
 	type ScheduledContext,
@@ -11,7 +11,7 @@ import {
 // ─── Test Helpers ────────────────────────────────────────────────
 
 function createMockContext(
-	client: UnicornClient,
+	client: Client,
 	overrides: Partial<ScheduledContext> = {},
 ): ScheduledContext {
 	return {

@@ -1,5 +1,3 @@
-import type { UnicornClient } from '@/core/client';
-
 /**
  * Result of a guard check - either success with the (possibly narrowed) value,
  * or failure with a reason string.
@@ -11,18 +9,13 @@ export type GuardResult<T> =
 /**
  * A guard function that validates input and optionally narrows its type.
  *
- * Guards receive:
- * - input: The value to validate (e.g., Interaction, Message, etc.)
- * - client: The UnicornClient with access to logger, config, etc.
- *
- * Guards return:
- * - { ok: true, value: T } - Validation passed, value may be narrowed
- * - { ok: false, reason: string } - Validation failed with explanation
+ * Guards receive a single input value and return a result indicating success
+ * or failure. Guards that need client access can use `input.client` when
+ * the input is a Discord.js object (interaction, message, etc.).
  *
  * @example
  * ```ts
- * // Guard that narrows Interaction to one in a cached guild
- * const inGuild: Guard<Interaction, Interaction & { guild: Guild }> = (interaction, client) => {
+ * const inGuild: Guard<Interaction, Interaction & { guild: Guild }> = (interaction) => {
  *   if (!interaction.inCachedGuild()) {
  *     return { ok: false, reason: 'Command must be used in a server' };
  *   }
@@ -32,7 +25,6 @@ export type GuardResult<T> =
  */
 export type Guard<TInput, TOutput extends TInput = TInput> = (
 	input: TInput,
-	client: UnicornClient,
 ) => GuardResult<TOutput> | Promise<GuardResult<TOutput>>;
 
 /**
@@ -46,7 +38,7 @@ export type GuardOutput<G> =
  *
  * @example
  * ```ts
- * const myGuard = createGuard<Interaction, CommandInteraction>((input, client) => {
+ * const myGuard = createGuard<Interaction, CommandInteraction>((input) => {
  *   if (!input.isCommand()) {
  *     return { ok: false, reason: 'Not a command interaction' };
  *   }
@@ -81,9 +73,8 @@ export function guardFail(reason: string): GuardResult<never> {
 export function runGuard<TInput, TOutput extends TInput>(
 	guard: Guard<TInput, TOutput>,
 	input: TInput,
-	client: UnicornClient,
 ): GuardResult<TOutput> | Promise<GuardResult<TOutput>> {
-	return guard(input, client);
+	return guard(input);
 }
 
 /**
@@ -107,7 +98,6 @@ type ChainedGuardOutput<
  *
  * @param guards - Array of guards to run in sequence
  * @param input - Initial input value
- * @param client - UnicornClient instance
  * @returns The final narrowed value if all guards pass, or failure result
  *
  * @example
@@ -115,7 +105,6 @@ type ChainedGuardOutput<
  * const result = await runGuards(
  *   [inGuildGuard, hasPermissionGuard(PermissionFlagsBits.ManageMessages)],
  *   interaction,
- *   client
  * );
  *
  * if (!result.ok) {
@@ -134,7 +123,6 @@ export async function runGuards<
 >(
 	guards: Guards,
 	input: TInput,
-	client: UnicornClient,
 ): Promise<GuardResult<ChainedGuardOutput<TInput, Guards>>> {
 	let currentValue: unknown = input;
 
@@ -142,7 +130,7 @@ export async function runGuards<
 	// and we short-circuit on first failure.
 	for (const guard of guards) {
 		// biome-ignore lint/performance/noAwaitInLoops: guards must run sequentially for type narrowing and short-circuit
-		const result = await guard(currentValue, client);
+		const result = await guard(currentValue);
 
 		if (!result.ok) {
 			return result;

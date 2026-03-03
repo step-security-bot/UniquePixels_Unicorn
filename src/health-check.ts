@@ -1,11 +1,11 @@
-import type { UnicornClient } from '@/core/client';
+import type { Client } from 'discord.js';
 
 /**
  * Creates the fetch handler for the health check server.
  * Extracted for testability without starting an actual server.
  */
 export function createHealthCheckHandler(
-	client: UnicornClient,
+	client: Client,
 ): (req: Request) => Response {
 	return (req: Request): Response => {
 		const url = new URL(req.url);

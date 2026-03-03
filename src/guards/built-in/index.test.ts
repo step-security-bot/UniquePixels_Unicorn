@@ -3,6 +3,7 @@ import {
 	beforeEach,
 	describe,
 	expect,
+	spyOn,
 	test,
 } from 'bun:test';
 import {
@@ -13,7 +14,7 @@ import {
 	type Interaction,
 	PermissionsBitField,
 } from 'discord.js';
-import { createMockClient, createMockMessage } from '@/core/lib/test-helpers';
+import { createMockMessage } from '@/core/lib/test-helpers';
 import {
 	_rateLimitTesting,
 	botHasPermission,
@@ -61,19 +62,17 @@ function createMockInteraction(options: {
 
 describe('inCachedGuild', () => {
 	test('passes for interaction in cached guild', async () => {
-		const client = createMockClient();
 		const interaction = createMockInteraction({ inCachedGuild: true });
 
-		const result = await inCachedGuild(interaction, client);
+		const result = await inCachedGuild(interaction);
 
 		expect(result.ok).toBe(true);
 	});
 
 	test('fails for interaction not in cached guild', async () => {
-		const client = createMockClient();
 		const interaction = createMockInteraction({ inCachedGuild: false });
 
-		const result = await inCachedGuild(interaction, client);
+		const result = await inCachedGuild(interaction);
 
 		expect(result.ok).toBe(false);
 		expect((result as { ok: false; reason: string }).reason).toContain(
@@ -82,13 +81,12 @@ describe('inCachedGuild', () => {
 	});
 
 	test('fails for DM interaction', async () => {
-		const client = createMockClient();
 		const interaction = createMockInteraction({
 			inCachedGuild: false,
 			guildId: null,
 		});
 
-		const result = await inCachedGuild(interaction, client);
+		const result = await inCachedGuild(interaction);
 
 		expect(result.ok).toBe(false);
 	});
@@ -96,7 +94,6 @@ describe('inCachedGuild', () => {
 
 describe('hasPermission', () => {
 	test('passes when user has required permission', async () => {
-		const client = createMockClient();
 		const guard = hasPermission(PermissionsBitField.Flags.SendMessages);
 
 		const input = {
@@ -107,13 +104,12 @@ describe('hasPermission', () => {
 			} as GuildMember,
 		};
 
-		const result = await guard(input, client);
+		const result = await guard(input);
 
 		expect(result.ok).toBe(true);
 	});
 
 	test('fails when user lacks required permission', async () => {
-		const client = createMockClient();
 		const guard = hasPermission(PermissionsBitField.Flags.Administrator);
 
 		const input = {
@@ -124,13 +120,12 @@ describe('hasPermission', () => {
 			} as GuildMember,
 		};
 
-		const result = await guard(input, client);
+		const result = await guard(input);
 
 		expect(result.ok).toBe(false);
 	});
 
 	test('passes when user has all required permissions', async () => {
-		const client = createMockClient();
 		const guard = hasPermission([
 			PermissionsBitField.Flags.SendMessages,
 			PermissionsBitField.Flags.EmbedLinks,
@@ -146,13 +141,12 @@ describe('hasPermission', () => {
 			} as GuildMember,
 		};
 
-		const result = await guard(input, client);
+		const result = await guard(input);
 
 		expect(result.ok).toBe(true);
 	});
 
 	test('fails when user is missing one required permission', async () => {
-		const client = createMockClient();
 		const guard = hasPermission([
 			PermissionsBitField.Flags.SendMessages,
 			PermissionsBitField.Flags.ManageMessages,
@@ -166,13 +160,12 @@ describe('hasPermission', () => {
 			} as GuildMember,
 		};
 
-		const result = await guard(input, client);
+		const result = await guard(input);
 
 		expect(result.ok).toBe(false);
 	});
 
 	test('uses custom error message when provided', async () => {
-		const client = createMockClient();
 		const customMessage = 'You need to be a moderator';
 		const guard = hasPermission(
 			PermissionsBitField.Flags.ManageMessages,
@@ -185,7 +178,7 @@ describe('hasPermission', () => {
 			} as GuildMember,
 		};
 
-		const result = await guard(input, client);
+		const result = await guard(input);
 
 		expect(result.ok).toBe(false);
 		expect((result as { ok: false; reason: string }).reason).toBe(customMessage);
@@ -194,7 +187,6 @@ describe('hasPermission', () => {
 
 describe('botHasPermission', () => {
 	test('passes when bot has required permission in channel', async () => {
-		const client = createMockClient();
 		const guard = botHasPermission(PermissionsBitField.Flags.SendMessages);
 
 		const botMember = {
@@ -207,13 +199,12 @@ describe('botHasPermission', () => {
 			channel: {} as GuildBasedChannel,
 		};
 
-		const result = await guard(input, client);
+		const result = await guard(input);
 
 		expect(result.ok).toBe(true);
 	});
 
 	test('fails when bot lacks required permission in channel', async () => {
-		const client = createMockClient();
 		const guard = botHasPermission(PermissionsBitField.Flags.ManageMessages);
 
 		const botMember = {
@@ -226,13 +217,12 @@ describe('botHasPermission', () => {
 			channel: {} as GuildBasedChannel,
 		};
 
-		const result = await guard(input, client);
+		const result = await guard(input);
 
 		expect(result.ok).toBe(false);
 	});
 
 	test('fails when bot member is not available', async () => {
-		const client = createMockClient();
 		const guard = botHasPermission(PermissionsBitField.Flags.SendMessages);
 
 		const input = {
@@ -240,7 +230,7 @@ describe('botHasPermission', () => {
 			channel: {} as GuildBasedChannel,
 		};
 
-		const result = await guard(input, client);
+		const result = await guard(input);
 
 		expect(result.ok).toBe(false);
 		expect((result as { ok: false; reason: string }).reason).toContain(
@@ -249,7 +239,6 @@ describe('botHasPermission', () => {
 	});
 
 	test('uses custom error message when provided', async () => {
-		const client = createMockClient();
 		const customMessage = 'Bot needs embed permissions';
 		const guard = botHasPermission(
 			PermissionsBitField.Flags.EmbedLinks,
@@ -265,7 +254,7 @@ describe('botHasPermission', () => {
 			channel: {} as GuildBasedChannel,
 		};
 
-		const result = await guard(input, client);
+		const result = await guard(input);
 
 		expect(result.ok).toBe(false);
 		expect((result as { ok: false; reason: string }).reason).toBe(customMessage);
@@ -274,43 +263,39 @@ describe('botHasPermission', () => {
 
 describe('isUser', () => {
 	test('passes for user in allowed list', async () => {
-		const client = createMockClient();
 		const guard = isUser(['123456789012345678', '234567890123456789']);
 		const interaction = createMockInteraction({ userId: '123456789012345678' });
 
-		const result = await guard(interaction, client);
+		const result = await guard(interaction);
 
 		expect(result.ok).toBe(true);
 	});
 
 	test('fails for user not in allowed list', async () => {
-		const client = createMockClient();
 		const guard = isUser(['123456789012345678']);
 		const interaction = createMockInteraction({ userId: '999999999999999999' });
 
-		const result = await guard(interaction, client);
+		const result = await guard(interaction);
 
 		expect(result.ok).toBe(false);
 	});
 
 	test('uses custom error message when provided', async () => {
-		const client = createMockClient();
 		const customMessage = 'Only bot owners can use this';
 		const guard = isUser(['123456789012345678'], customMessage);
 		const interaction = createMockInteraction({ userId: '999999999999999999' });
 
-		const result = await guard(interaction, client);
+		const result = await guard(interaction);
 
 		expect(result.ok).toBe(false);
 		expect((result as { ok: false; reason: string }).reason).toBe(customMessage);
 	});
 
 	test('handles empty allowed list', async () => {
-		const client = createMockClient();
 		const guard = isUser([]);
 		const interaction = createMockInteraction({ userId: '123456789012345678' });
 
-		const result = await guard(interaction, client);
+		const result = await guard(interaction);
 
 		expect(result.ok).toBe(false);
 	});
@@ -318,49 +303,45 @@ describe('isUser', () => {
 
 describe('channelType', () => {
 	test('passes for matching channel type', async () => {
-		const client = createMockClient();
 		const guard = channelType(ChannelType.GuildText);
 		const interaction = createMockInteraction({
 			channelType: ChannelType.GuildText,
 		});
 
-		const result = await guard(interaction, client);
+		const result = await guard(interaction);
 
 		expect(result.ok).toBe(true);
 	});
 
 	test('fails for non-matching channel type', async () => {
-		const client = createMockClient();
 		const guard = channelType(ChannelType.GuildVoice);
 		const interaction = createMockInteraction({
 			channelType: ChannelType.GuildText,
 		});
 
-		const result = await guard(interaction, client);
+		const result = await guard(interaction);
 
 		expect(result.ok).toBe(false);
 	});
 
 	test('passes when channel matches one of multiple types', async () => {
-		const client = createMockClient();
 		const guard = channelType(ChannelType.GuildText, ChannelType.GuildVoice);
 		const interaction = createMockInteraction({
 			channelType: ChannelType.GuildVoice,
 		});
 
-		const result = await guard(interaction, client);
+		const result = await guard(interaction);
 
 		expect(result.ok).toBe(true);
 	});
 
 	test('includes channel type names in error message', async () => {
-		const client = createMockClient();
 		const guard = channelType(ChannelType.PublicThread, ChannelType.PrivateThread);
 		const interaction = createMockInteraction({
 			channelType: ChannelType.GuildText,
 		});
 
-		const result = await guard(interaction, client);
+		const result = await guard(interaction);
 
 		expect(result.ok).toBe(false);
 		const reason = (result as { ok: false; reason: string }).reason;
@@ -380,33 +361,30 @@ describe('rateLimit', () => {
 	});
 
 	test('allows first request', async () => {
-		const client = createMockClient();
 		const guard = rateLimit({ limit: 5, window: 60000 });
 		const interaction = createMockInteraction({ userId: 'rate-test-1' });
 
-		const result = await guard(interaction, client);
+		const result = await guard(interaction);
 
 		expect(result.ok).toBe(true);
 	});
 
 	test('allows requests up to limit', async () => {
-		const client = createMockClient();
 		const guard = rateLimit({ limit: 3, window: 60000 });
 		const interaction = createMockInteraction({ userId: 'rate-test-2' });
 
-		expect((await guard(interaction, client)).ok).toBe(true);
-		expect((await guard(interaction, client)).ok).toBe(true);
-		expect((await guard(interaction, client)).ok).toBe(true);
+		expect((await guard(interaction)).ok).toBe(true);
+		expect((await guard(interaction)).ok).toBe(true);
+		expect((await guard(interaction)).ok).toBe(true);
 	});
 
 	test('blocks requests after limit exceeded', async () => {
-		const client = createMockClient();
 		const guard = rateLimit({ limit: 2, window: 60000 });
 		const interaction = createMockInteraction({ userId: 'rate-test-3' });
 
-		await guard(interaction, client);
-		await guard(interaction, client);
-		const result = await guard(interaction, client);
+		await guard(interaction);
+		await guard(interaction);
+		const result = await guard(interaction);
 
 		expect(result.ok).toBe(false);
 		expect((result as { ok: false; reason: string }).reason).toContain(
@@ -415,23 +393,21 @@ describe('rateLimit', () => {
 	});
 
 	test('rate limits are per-user by default', async () => {
-		const client = createMockClient();
 		const guard = rateLimit({ limit: 1, window: 60000 });
 
 		const user1 = createMockInteraction({ userId: 'user-1' });
 		const user2 = createMockInteraction({ userId: 'user-2' });
 
-		expect((await guard(user1, client)).ok).toBe(true);
-		expect((await guard(user2, client)).ok).toBe(true);
+		expect((await guard(user1)).ok).toBe(true);
+		expect((await guard(user2)).ok).toBe(true);
 
 		// User1's second request should be blocked
-		expect((await guard(user1, client)).ok).toBe(false);
+		expect((await guard(user1)).ok).toBe(false);
 		// User2's second request should also be blocked
-		expect((await guard(user2, client)).ok).toBe(false);
+		expect((await guard(user2)).ok).toBe(false);
 	});
 
 	test('uses custom keyFn for rate limiting', async () => {
-		const client = createMockClient();
 		const guard = rateLimit({
 			limit: 1,
 			window: 60000,
@@ -451,38 +427,40 @@ describe('rateLimit', () => {
 			guildId: 'guild-2',
 		});
 
-		expect((await guard(guild1User1, client)).ok).toBe(true);
+		expect((await guard(guild1User1)).ok).toBe(true);
 		// Different user, same guild - should be blocked
-		expect((await guard(guild1User2, client)).ok).toBe(false);
+		expect((await guard(guild1User2)).ok).toBe(false);
 		// Same user, different guild - should pass
-		expect((await guard(guild2User1, client)).ok).toBe(true);
+		expect((await guard(guild2User1)).ok).toBe(true);
 	});
 
 	test('uses custom error message', async () => {
-		const client = createMockClient();
 		const customMessage = 'Slow down!';
 		const guard = rateLimit({ limit: 1, window: 60000, message: customMessage });
 		const interaction = createMockInteraction({ userId: 'rate-custom' });
 
-		await guard(interaction, client);
-		const result = await guard(interaction, client);
+		await guard(interaction);
+		const result = await guard(interaction);
 
 		expect(result.ok).toBe(false);
 		expect((result as { ok: false; reason: string }).reason).toBe(customMessage);
 	});
 
 	test('resets after window expires', async () => {
-		const client = createMockClient();
+		let now = 1000;
+		const dateSpy = spyOn(Date, 'now').mockImplementation(() => now);
+
 		const guard = rateLimit({ limit: 1, window: 50 }); // 50ms window
 		const interaction = createMockInteraction({ userId: 'rate-expire' });
 
-		await guard(interaction, client);
-		expect((await guard(interaction, client)).ok).toBe(false);
+		await guard(interaction);
+		expect((await guard(interaction)).ok).toBe(false);
 
-		// Wait for window to expire
-		await new Promise((resolve) => setTimeout(resolve, 60));
+		// Advance past window expiration
+		now = 1060;
+		expect((await guard(interaction)).ok).toBe(true);
 
-		expect((await guard(interaction, client)).ok).toBe(true);
+		dateSpy.mockRestore();
 	});
 });
 
@@ -497,25 +475,28 @@ describe('cleanupRateLimits', () => {
 	});
 
 	test('clears expired rate limits', async () => {
-		const client = createMockClient();
+		let now = 1000;
+		const dateSpy = spyOn(Date, 'now').mockImplementation(() => now);
+
 		const guard = rateLimit({ limit: 1, window: 20 });
 		const interaction = createMockInteraction({ userId: 'cleanup-test' });
 
-		await guard(interaction, client);
+		await guard(interaction);
 
-		// Wait for expiration
-		await new Promise((resolve) => setTimeout(resolve, 30));
+		// Advance past window expiration
+		now = 1030;
 
 		const cleared = cleanupRateLimits();
 		expect(cleared).toBe(1);
+
+		dateSpy.mockRestore();
 	});
 
 	test('does not clear unexpired rate limits', async () => {
-		const client = createMockClient();
 		const guard = rateLimit({ limit: 1, window: 60000 });
 		const interaction = createMockInteraction({ userId: 'cleanup-test-2' });
 
-		await guard(interaction, client);
+		await guard(interaction);
 
 		const cleared = cleanupRateLimits();
 		expect(cleared).toBe(0);
@@ -524,19 +505,17 @@ describe('cleanupRateLimits', () => {
 
 describe('messageInGuild', () => {
 	test('passes for message in guild', async () => {
-		const client = createMockClient();
 		const message = createMockMessage({ inGuild: true });
 
-		const result = await messageInGuild(message, client);
+		const result = await messageInGuild(message);
 
 		expect(result.ok).toBe(true);
 	});
 
 	test('fails for DM message', async () => {
-		const client = createMockClient();
 		const message = createMockMessage({ inGuild: false });
 
-		const result = await messageInGuild(message, client);
+		const result = await messageInGuild(message);
 
 		expect(result.ok).toBe(false);
 		expect((result as { ok: false; reason: string }).reason).toContain('server');
@@ -545,19 +524,17 @@ describe('messageInGuild', () => {
 
 describe('notBot', () => {
 	test('passes for human user message', async () => {
-		const client = createMockClient();
 		const message = createMockMessage({ isBot: false });
 
-		const result = await notBot(message, client);
+		const result = await notBot(message);
 
 		expect(result.ok).toBe(true);
 	});
 
 	test('fails for bot message', async () => {
-		const client = createMockClient();
 		const message = createMockMessage({ isBot: true });
 
-		const result = await notBot(message, client);
+		const result = await notBot(message);
 
 		expect(result.ok).toBe(false);
 		expect((result as { ok: false; reason: string }).reason).toContain('Bots');
@@ -581,9 +558,8 @@ describe('rateLimit _testing utilities', () => {
 		expect(store.size).toBe(0);
 
 		// After a guard invocation, the store should have an entry
-		const client = createMockClient();
 		const guard = rateLimit({ limit: 5, window: 60000 });
-		await guard(createMockInteraction({ userId: 'store-user' }), client);
+		await guard(createMockInteraction({ userId: 'store-user' }));
 
 		expect(store.size).toBe(1);
 	});
@@ -601,7 +577,6 @@ describe('rateLimit LRU eviction', () => {
 	});
 
 	test('evicted users get a fresh request count', async () => {
-		const client = createMockClient();
 		_rateLimitTesting.setMaxEntries(5);
 		_rateLimitTesting.setEvictionBatchSize(2);
 
@@ -611,27 +586,26 @@ describe('rateLimit LRU eviction', () => {
 		// Add 6 entries (exceeds max of 5 → evicts oldest 3)
 		for (let i = 0; i < 6; i++) {
 			const interaction = createMockInteraction({ userId: `evict-user-${i}` });
-			await guard(interaction, client);
+			await guard(interaction);
 		}
 
 		// Evicted user-0 should pass with a fresh count (count resets to 1)
 		const evictedRetry = createMockInteraction({ userId: 'evict-user-0' });
-		const evictedResult = await guard(evictedRetry, client);
+		const evictedResult = await guard(evictedRetry);
 		expect(evictedResult.ok).toBe(true);
 
 		// Surviving user-5 already used 1 of 2 — second request still passes
 		const survivingRetry = createMockInteraction({ userId: 'evict-user-5' });
-		const survivingResult = await guard(survivingRetry, client);
+		const survivingResult = await guard(survivingRetry);
 		expect(survivingResult.ok).toBe(true);
 
 		// Surviving user-5 now at 2/2 — third request should be rate limited
 		const survivingThird = createMockInteraction({ userId: 'evict-user-5' });
-		const thirdResult = await guard(survivingThird, client);
+		const thirdResult = await guard(survivingThird);
 		expect(thirdResult.ok).toBe(false);
 	});
 
 	test('does not evict when under capacity', async () => {
-		const client = createMockClient();
 		_rateLimitTesting.setMaxEntries(10);
 
 		// limit: 1 so second request is rate limited if entry still exists
@@ -640,19 +614,18 @@ describe('rateLimit LRU eviction', () => {
 		// Add 5 entries (under max of 10)
 		for (let i = 0; i < 5; i++) {
 			const interaction = createMockInteraction({ userId: `no-evict-user-${i}` });
-			await guard(interaction, client);
+			await guard(interaction);
 		}
 
 		// All users should still be tracked — second request fails for each
 		for (let i = 0; i < 5; i++) {
 			const retry = createMockInteraction({ userId: `no-evict-user-${i}` });
-			const result = await guard(retry, client);
+			const result = await guard(retry);
 			expect(result.ok).toBe(false);
 		}
 	});
 
 	test('recently accessed user survives eviction over older untouched user', async () => {
-		const client = createMockClient();
 		_rateLimitTesting.setMaxEntries(3);
 		_rateLimitTesting.setEvictionBatchSize(1);
 
@@ -660,20 +633,19 @@ describe('rateLimit LRU eviction', () => {
 		const guard = rateLimit({ limit: 10, window: 60000 });
 
 		// Add initial entries: insertion order is user0, user1, user2
-		await guard(createMockInteraction({ userId: 'lru-user-0' }), client);
-		await guard(createMockInteraction({ userId: 'lru-user-1' }), client);
-		await guard(createMockInteraction({ userId: 'lru-user-2' }), client);
+		await guard(createMockInteraction({ userId: 'lru-user-0' }));
+		await guard(createMockInteraction({ userId: 'lru-user-1' }));
+		await guard(createMockInteraction({ userId: 'lru-user-2' }));
 
 		// Touch user0 → LRU order becomes: user1, user2, user0
-		await guard(createMockInteraction({ userId: 'lru-user-0' }), client);
+		await guard(createMockInteraction({ userId: 'lru-user-0' }));
 
 		// Add user3 → triggers eviction of 1 entry (user1 is oldest)
-		await guard(createMockInteraction({ userId: 'lru-user-3' }), client);
+		await guard(createMockInteraction({ userId: 'lru-user-3' }));
 
 		// user1 was evicted → gets a fresh start (limit: 10, so passes easily)
 		const user1Retry = await guard(
 			createMockInteraction({ userId: 'lru-user-1' }),
-			client,
 		);
 		expect(user1Retry.ok).toBe(true);
 
@@ -685,14 +657,12 @@ describe('rateLimit LRU eviction', () => {
 		for (let i = 0; i < 8; i++) {
 			const result = await guard(
 				createMockInteraction({ userId: 'lru-user-0' }),
-				client,
 			);
 			expect(result.ok).toBe(true);
 		}
 		// Now at limit — 11th request should fail (proves entry was preserved)
 		const user0Limited = await guard(
 			createMockInteraction({ userId: 'lru-user-0' }),
-			client,
 		);
 		expect(user0Limited.ok).toBe(false);
 	});

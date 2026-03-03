@@ -41,7 +41,7 @@ src/
 ├── health-check.ts             # Liveness/readiness probes (Bun.serve)
 ├── shutdown.ts                 # Graceful shutdown handler
 ├── core/
-│   ├── client/                 # UnicornClient interface & initialization
+│   ├── client/                 # Client augmentation & initialization
 │   ├── configuration/          # Zod schemas, parseConfig(), type-safe IDs
 │   ├── guards/                 # Guard infrastructure (runGuards, createGuard)
 │   ├── sparks/
@@ -96,7 +96,7 @@ Six spark types share: `type`, `guards[]`, `action()`, `execute()`, `register(cl
 
 ### Guards
 
-Composable validators returning `{ ok: true, value }` or `{ ok: false, reason }`. Chain sequentially with type narrowing.
+Composable validators with signature `(input) => GuardResult`. Return `{ ok: true, value }` or `{ ok: false, reason }`. Chain sequentially with type narrowing. Guards do not receive a `client` parameter — access client via `input.client` when input is an interaction.
 
 12 built-in guards (import from `@/guards/built-in`) — see `spark-reference.md` for the full list with types and usage.
 
@@ -133,7 +133,7 @@ Biome with strict rules: **kebab-case** filenames, **no `console`** (use `client
 
 Use Bun's test runner. Coverage threshold: 90%.
 
-**Test helpers** (`@/core/lib/test-helpers`): `createMockClient()`, `createMockChatInputInteraction()`, `createMockAutocompleteInteraction()`, `createMockComponentInteraction()`, `createMockBaseInteraction()`, `createMockMessage()`, `createMockReadyClient()`, `passThroughGuard()`, `failGuard()`
+**Test helpers** (`@/core/lib/test-helpers`): `createMockClient()`, `createMockChatInputInteraction()`, `createMockAutocompleteInteraction()`, `createMockComponentInteraction()`, `createMockBaseInteraction()`, `createMockMessage()`, `createMockReadyClient()`, `passThroughGuard()`, `failGuard()`. Mock interactions include a `.client` property by default. `createMockClient()` returns `Client` (augmented via module augmentation).
 
 **Test code quality:** Extract shared setup, assertions, and mock construction into helper functions to minimize duplication. Tests should be DRY — if the same pattern appears in multiple tests, factor it into a reusable helper at the top of the test file.
 

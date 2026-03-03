@@ -1,5 +1,5 @@
 import { CronJob } from 'cron';
-import type { UnicornClient } from '@/core/client';
+import type { Client } from 'discord.js';
 import type { Guard, GuardResult } from '@/core/guards';
 import { runGuards } from '@/core/guards';
 import { attempt, isError } from '@/core/lib/attempt';
@@ -8,8 +8,8 @@ import { attempt, isError } from '@/core/lib/attempt';
  * Context passed to scheduled event actions.
  */
 export interface ScheduledContext {
-	/** The Unicorn client */
-	client: UnicornClient;
+	/** The Discord client */
+	client: Client;
 	/** The cron job instance */
 	job: CronJob;
 	/** The scheduled fire time */
@@ -60,10 +60,10 @@ export interface ScheduledEventSpark {
 	execute(ctx: ScheduledContext): Promise<GuardResult<ScheduledContext>>;
 
 	/** Register this spark with the client (starts cron jobs) */
-	register(client: UnicornClient): void;
+	register(client: Client): void;
 
 	/** Stop all cron jobs for this spark */
-	stop(client: UnicornClient): void;
+	stop(client: Client): void;
 }
 
 /**
@@ -112,7 +112,6 @@ export function defineScheduledEvent(
 			const guardResult = await runGuards(
 				guards as readonly Guard<unknown, unknown>[],
 				ctx,
-				ctx.client,
 			);
 
 			if (!guardResult.ok) {
@@ -136,7 +135,7 @@ export function defineScheduledEvent(
 			return guardResult as GuardResult<ScheduledContext>;
 		},
 
-		register(client: UnicornClient): void {
+		register(client: Client): void {
 			const schedules = Array.isArray(schedule) ? schedule : [schedule];
 
 			for (const cronExpr of schedules) {
@@ -182,7 +181,7 @@ export function defineScheduledEvent(
 			}
 		},
 
-		stop(client: UnicornClient): void {
+		stop(client: Client): void {
 			const schedules = Array.isArray(schedule) ? schedule : [schedule];
 
 			for (const cronExpr of schedules) {
@@ -204,7 +203,7 @@ export function defineScheduledEvent(
  * Stops all registered scheduled jobs.
  * Call during graceful shutdown.
  */
-export function stopAllScheduledJobs(client: UnicornClient): void {
+export function stopAllScheduledJobs(client: Client): void {
 	for (const [key, job] of client.scheduledJobs) {
 		job.stop();
 		client.logger.debug({ key }, 'Stopped scheduled job');

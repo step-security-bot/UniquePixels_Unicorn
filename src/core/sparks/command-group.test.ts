@@ -2,6 +2,7 @@ import { describe, expect, mock, test } from 'bun:test';
 import type {
 	AutocompleteInteraction,
 	ChatInputCommandInteraction,
+	Client,
 	CommandInteraction,
 	SlashCommandBuilder,
 } from 'discord.js';
@@ -19,6 +20,7 @@ function createMockCommand(name: string) {
 function createMockInteraction(
 	subcommand: string | null,
 	group: string | null = null,
+	mockClient?: Client,
 ): ChatInputCommandInteraction {
 	return {
 		commandName: 'test',
@@ -41,12 +43,14 @@ function createMockInteraction(
 		deferred: false,
 		reply: mock(async () => {}),
 		isChatInputCommand: () => true,
+		client: mockClient ?? createMockClient(),
 	} as unknown as ChatInputCommandInteraction;
 }
 
 function createMockAutocompleteInteraction(
 	subcommand: string | null,
 	group: string | null = null,
+	mockClient?: Client,
 ): AutocompleteInteraction {
 	return {
 		commandName: 'test',
@@ -66,6 +70,7 @@ function createMockAutocompleteInteraction(
 			getFocused: mock(() => ''),
 		},
 		respond: mock(async () => {}),
+		client: mockClient ?? createMockClient(),
 	} as unknown as AutocompleteInteraction;
 }
 
@@ -139,12 +144,11 @@ describe('CommandGroupSpark.execute', () => {
 				},
 			});
 
-			const client = createMockClient();
 			const interaction = createMockInteraction('list');
 
-			await spark.execute(interaction, client);
+			await spark.execute(interaction);
 
-			expect(listAction).toHaveBeenCalledWith(interaction, client);
+			expect(listAction).toHaveBeenCalledWith(interaction);
 			expect(addAction).not.toHaveBeenCalled();
 		});
 
@@ -162,12 +166,11 @@ describe('CommandGroupSpark.execute', () => {
 				},
 			});
 
-			const client = createMockClient();
 			const interaction = createMockInteraction('add', 'roles');
 
-			await spark.execute(interaction, client);
+			await spark.execute(interaction);
 
-			expect(addAction).toHaveBeenCalledWith(interaction, client);
+			expect(addAction).toHaveBeenCalledWith(interaction);
 			expect(removeAction).not.toHaveBeenCalled();
 		});
 
@@ -187,10 +190,9 @@ describe('CommandGroupSpark.execute', () => {
 				},
 			});
 
-			const client = createMockClient();
 			const interaction = createMockInteraction('add', 'items');
 
-			await spark.execute(interaction, client);
+			await spark.execute(interaction);
 
 			expect(groupedAdd).toHaveBeenCalled();
 			expect(directAdd).not.toHaveBeenCalled();
@@ -204,10 +206,9 @@ describe('CommandGroupSpark.execute', () => {
 				},
 			});
 
-			const client = createMockClient();
 			const interaction = createMockInteraction('unknown');
 
-			const result = await spark.execute(interaction, client);
+			const result = await spark.execute(interaction);
 
 			expect(result.ok).toBe(false);
 			if (!result.ok) {
@@ -227,10 +228,9 @@ describe('CommandGroupSpark.execute', () => {
 				},
 			});
 
-			const client = createMockClient();
 			const interaction = createMockInteraction('delete', 'roles');
 
-			const result = await spark.execute(interaction, client);
+			const result = await spark.execute(interaction);
 
 			expect(result.ok).toBe(false);
 		});
@@ -245,10 +245,9 @@ describe('CommandGroupSpark.execute', () => {
 				},
 			});
 
-			const client = createMockClient();
 			const interaction = createMockInteraction('add', 'channels');
 
-			const result = await spark.execute(interaction, client);
+			const result = await spark.execute(interaction);
 
 			expect(result.ok).toBe(false);
 		});
@@ -262,9 +261,9 @@ describe('CommandGroupSpark.execute', () => {
 			});
 
 			const client = createMockClient();
-			const interaction = createMockInteraction('missing');
+			const interaction = createMockInteraction('missing', null, client);
 
-			await spark.execute(interaction, client);
+			await spark.execute(interaction);
 
 			expect(client.logger.warn).toHaveBeenCalledWith(
 				{
@@ -298,10 +297,9 @@ describe('CommandGroupSpark.execute', () => {
 				},
 			});
 
-			const client = createMockClient();
 			const interaction = createMockInteraction('list');
 
-			await spark.execute(interaction, client);
+			await spark.execute(interaction);
 
 			expect(calls).toEqual(['guard', 'action']);
 		});
@@ -322,10 +320,9 @@ describe('CommandGroupSpark.execute', () => {
 				},
 			});
 
-			const client = createMockClient();
 			const interaction = createMockInteraction('list');
 
-			const result = await spark.execute(interaction, client);
+			const result = await spark.execute(interaction);
 
 			expect(result.ok).toBe(false);
 			if (!result.ok) {
@@ -346,9 +343,9 @@ describe('CommandGroupSpark.execute', () => {
 			});
 
 			const client = createMockClient();
-			const interaction = createMockInteraction('list');
+			const interaction = createMockInteraction('list', null, client);
 
-			await spark.execute(interaction, client);
+			await spark.execute(interaction);
 
 			expect(client.logger.debug).toHaveBeenCalledWith(
 				{ command: 'manage', reason: 'Test failure' },
@@ -384,10 +381,9 @@ describe('CommandGroupSpark.execute', () => {
 				},
 			});
 
-			const client = createMockClient();
 			const interaction = createMockInteraction('add');
 
-			await spark.execute(interaction, client);
+			await spark.execute(interaction);
 
 			expect(calls).toEqual(['top-guard', 'sub-guard', 'action']);
 		});
@@ -410,10 +406,9 @@ describe('CommandGroupSpark.execute', () => {
 				},
 			});
 
-			const client = createMockClient();
 			const interaction = createMockInteraction('add');
 
-			const result = await spark.execute(interaction, client);
+			const result = await spark.execute(interaction);
 
 			expect(result.ok).toBe(false);
 			if (!result.ok) {
@@ -439,9 +434,9 @@ describe('CommandGroupSpark.execute', () => {
 			});
 
 			const client = createMockClient();
-			const interaction = createMockInteraction('add');
+			const interaction = createMockInteraction('add', null, client);
 
-			await spark.execute(interaction, client);
+			await spark.execute(interaction);
 
 			expect(client.logger.debug).toHaveBeenCalledWith(
 				{ command: 'manage add', reason: 'No perms' },
@@ -459,10 +454,9 @@ describe('CommandGroupSpark.execute', () => {
 				},
 			});
 
-			const client = createMockClient();
 			const interaction = createMockInteraction('list');
 
-			const result = await spark.execute(interaction, client);
+			const result = await spark.execute(interaction);
 
 			expect(result.ok).toBe(true);
 			expect(actionMock).toHaveBeenCalled();
@@ -483,9 +477,9 @@ describe('CommandGroupSpark.execute', () => {
 			});
 
 			const client = createMockClient();
-			const interaction = createMockInteraction('add');
+			const interaction = createMockInteraction('add', null, client);
 
-			const result = await spark.execute(interaction, client);
+			const result = await spark.execute(interaction);
 
 			// Guards passed so result is ok — error is logged, not thrown
 			expect(result.ok).toBe(true);
@@ -505,9 +499,9 @@ describe('CommandGroupSpark.execute', () => {
 			});
 
 			const client = createMockClient();
-			const interaction = createMockInteraction('add');
+			const interaction = createMockInteraction('add', null, client);
 
-			await spark.execute(interaction, client);
+			await spark.execute(interaction);
 
 			const errorCalls = (client.logger.error as ReturnType<typeof mock>)
 				.mock.calls;
@@ -530,9 +524,9 @@ describe('CommandGroupSpark.execute', () => {
 			});
 
 			const client = createMockClient();
-			const interaction = createMockInteraction('add', 'roles');
+			const interaction = createMockInteraction('add', 'roles', client);
 
-			await spark.execute(interaction, client);
+			await spark.execute(interaction);
 
 			const errorCalls = (client.logger.error as ReturnType<typeof mock>)
 				.mock.calls;
@@ -642,13 +636,12 @@ describe('CommandGroupSpark autocomplete', () => {
 			},
 		});
 
-		const client = createMockClient();
 		const interaction = createMockAutocompleteInteraction('search');
 
 		// Call the autocomplete property directly (not executeAutocomplete)
-		await spark.autocomplete!(interaction, client);
+		await spark.autocomplete!(interaction);
 
-		expect(searchAC).toHaveBeenCalledWith(interaction, client);
+		expect(searchAC).toHaveBeenCalledWith(interaction);
 	});
 
 	test('autocomplete property routes to correct grouped subcommand', async () => {
@@ -666,12 +659,11 @@ describe('CommandGroupSpark autocomplete', () => {
 			},
 		});
 
-		const client = createMockClient();
 		const interaction = createMockAutocompleteInteraction('add', 'roles');
 
-		await spark.autocomplete!(interaction, client);
+		await spark.autocomplete!(interaction);
 
-		expect(addAC).toHaveBeenCalledWith(interaction, client);
+		expect(addAC).toHaveBeenCalledWith(interaction);
 	});
 
 	test('autocomplete property is a no-op when subcommand has no autocomplete', async () => {
@@ -687,10 +679,9 @@ describe('CommandGroupSpark autocomplete', () => {
 		});
 
 		const interaction = createMockAutocompleteInteraction('list');
-		const client = createMockClient();
 
 		// Should not throw — handler has no autocomplete so it's skipped
-		await spark.autocomplete!(interaction, client);
+		await spark.autocomplete!(interaction);
 	});
 
 	describe('executeAutocomplete', () => {
@@ -708,12 +699,11 @@ describe('CommandGroupSpark autocomplete', () => {
 				},
 			});
 
-			const client = createMockClient();
 			const interaction = createMockAutocompleteInteraction('search');
 
-			await spark.executeAutocomplete!(interaction, client);
+			await spark.executeAutocomplete!(interaction);
 
-			expect(searchAC).toHaveBeenCalledWith(interaction, client);
+			expect(searchAC).toHaveBeenCalledWith(interaction);
 		});
 
 		test('routes autocomplete to the correct grouped subcommand', async () => {
@@ -731,15 +721,14 @@ describe('CommandGroupSpark autocomplete', () => {
 				},
 			});
 
-			const client = createMockClient();
 			const interaction = createMockAutocompleteInteraction(
 				'add',
 				'roles',
 			);
 
-			await spark.executeAutocomplete!(interaction, client);
+			await spark.executeAutocomplete!(interaction);
 
-			expect(addAC).toHaveBeenCalledWith(interaction, client);
+			expect(addAC).toHaveBeenCalledWith(interaction);
 		});
 
 		test('handles subcommand without autocomplete gracefully', async () => {
@@ -755,10 +744,10 @@ describe('CommandGroupSpark autocomplete', () => {
 			});
 
 			const client = createMockClient();
-			const interaction = createMockAutocompleteInteraction('list');
+			const interaction = createMockAutocompleteInteraction('list', null, client);
 
 			// Should not throw
-			await spark.executeAutocomplete!(interaction, client);
+			await spark.executeAutocomplete!(interaction);
 
 			expect(client.logger.debug).toHaveBeenCalledWith(
 				{ command: 'manage', subcommand: 'list', group: null },
@@ -780,9 +769,9 @@ describe('CommandGroupSpark autocomplete', () => {
 			});
 
 			const client = createMockClient();
-			const interaction = createMockAutocompleteInteraction('search');
+			const interaction = createMockAutocompleteInteraction('search', null, client);
 
-			await spark.executeAutocomplete!(interaction, client);
+			await spark.executeAutocomplete!(interaction);
 
 			expect(client.logger.warn).toHaveBeenCalled();
 		});
@@ -798,12 +787,11 @@ describe('CommandGroupSpark autocomplete', () => {
 				},
 			});
 
-			const client = createMockClient();
 			const interaction =
 				createMockAutocompleteInteraction('nonexistent');
 
 			// Should not throw
-			await spark.executeAutocomplete!(interaction, client);
+			await spark.executeAutocomplete!(interaction);
 		});
 	});
 });
@@ -817,7 +805,6 @@ describe('runtime type guard', () => {
 			},
 		});
 
-		const client = createMockClient();
 		const interaction = {
 			commandName: 'manage',
 			user: { id: '123456789012345678' },
@@ -825,9 +812,10 @@ describe('runtime type guard', () => {
 			deferred: false,
 			reply: mock(async () => {}),
 			isChatInputCommand: () => false,
+			client: createMockClient(),
 		} as unknown as CommandInteraction;
 
-		const result = await spark.execute(interaction, client);
+		const result = await spark.execute(interaction);
 
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
@@ -861,10 +849,9 @@ describe('edge cases', () => {
 			},
 		});
 
-		const client = createMockClient();
 		const interaction = createMockInteraction(null, null);
 
-		const result = await spark.execute(interaction, client);
+		const result = await spark.execute(interaction);
 
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
@@ -888,15 +875,13 @@ describe('edge cases', () => {
 			},
 		});
 
-		const client = createMockClient();
-
-		await spark.execute(createMockInteraction('b'), client);
+		await spark.execute(createMockInteraction('b'));
 
 		expect(actions.a).not.toHaveBeenCalled();
 		expect(actions.b).toHaveBeenCalledTimes(1);
 		expect(actions.c).not.toHaveBeenCalled();
 
-		await spark.execute(createMockInteraction('a'), client);
+		await spark.execute(createMockInteraction('a'));
 
 		expect(actions.a).toHaveBeenCalledTimes(1);
 		expect(actions.b).toHaveBeenCalledTimes(1);
@@ -919,13 +904,11 @@ describe('edge cases', () => {
 			},
 		});
 
-		const client = createMockClient();
-
-		await spark.execute(createMockInteraction('list'), client);
+		await spark.execute(createMockInteraction('list'));
 		expect(directList).toHaveBeenCalled();
 		expect(groupedAdd).not.toHaveBeenCalled();
 
-		await spark.execute(createMockInteraction('add', 'items'), client);
+		await spark.execute(createMockInteraction('add', 'items'));
 		expect(groupedAdd).toHaveBeenCalled();
 	});
 
@@ -940,7 +923,7 @@ describe('edge cases', () => {
 
 		// action exists for interface compliance but does nothing
 		expect(() =>
-			spark.action({} as ChatInputCommandInteraction, createMockClient()),
+			spark.action({} as ChatInputCommandInteraction),
 		).not.toThrow();
 
 		expect(listAction).not.toHaveBeenCalled();
@@ -962,10 +945,9 @@ describe('edge cases', () => {
 			},
 		});
 
-		const client = createMockClient();
 		const interaction = createMockInteraction('list');
 
-		await spark.execute(interaction, client);
+		await spark.execute(interaction);
 
 		expect(actionMock).toHaveBeenCalled();
 	});

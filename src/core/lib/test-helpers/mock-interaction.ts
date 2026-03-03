@@ -3,11 +3,13 @@ import { mock } from 'bun:test';
 import type {
 	AutocompleteInteraction,
 	ChatInputCommandInteraction,
+	Client,
 	Interaction,
 	Message,
 } from 'discord.js';
 import type { AnyComponentInteraction } from '@/core/sparks/component';
 import type { ReadyClient } from '@/core/sparks/gateway-event';
+import { createMockClient } from './mock-client';
 
 /**
  * Creates a mock ChatInputCommandInteraction for testing slash commands.
@@ -42,6 +44,7 @@ export function createMockChatInputInteraction(
 		reply?: ReturnType<typeof mock>;
 		editReply?: ReturnType<typeof mock>;
 		fetchReply?: ReturnType<typeof mock>;
+		client?: Client;
 	} = {},
 ): ChatInputCommandInteraction {
 	const optionsData = overrides.options ?? {};
@@ -55,6 +58,7 @@ export function createMockChatInputInteraction(
 		reply: overrides.reply ?? mock(async () => {}),
 		editReply: overrides.editReply ?? mock(async () => {}),
 		fetchReply: overrides.fetchReply ?? mock(async () => ({})),
+		client: overrides.client ?? createMockClient(),
 		options: {
 			getString: mock((name: string) => optionsData[name] ?? null),
 			getInteger: mock((name: string) => optionsData[name] ?? null),
@@ -94,11 +98,13 @@ export function createMockAutocompleteInteraction(
 		commandName?: string;
 		focusedValue?: string;
 		userId?: string;
+		client?: Client;
 	} = {},
 ): AutocompleteInteraction {
 	return {
 		commandName: overrides.commandName ?? 'test',
 		user: { id: overrides.userId ?? '123456789012345678' },
+		client: overrides.client ?? createMockClient(),
 		options: {
 			getFocused: mock(() => overrides.focusedValue ?? ''),
 		},
@@ -133,6 +139,7 @@ export function createMockComponentInteraction(
 		userId?: string;
 		replied?: boolean;
 		deferred?: boolean;
+		client?: Client;
 	} = {},
 ): AnyComponentInteraction {
 	return {
@@ -140,6 +147,7 @@ export function createMockComponentInteraction(
 		user: { id: overrides.userId ?? '123456789012345678' },
 		replied: overrides.replied ?? false,
 		deferred: overrides.deferred ?? false,
+		client: overrides.client ?? createMockClient(),
 		reply: mock(async () => {}),
 		deferUpdate: mock(async () => {}),
 		update: mock(async () => {}),
@@ -171,17 +179,17 @@ export function createMockBaseInteraction(
 	overrides: Record<string, unknown> = {},
 ): Interaction {
 	return {
+		isChatInputCommand: mock(() => false),
+		isAutocomplete: mock(() => false),
+		isContextMenuCommand: mock(() => false),
+		isMessageComponent: mock(() => false),
+		isModalSubmit: mock(() => false),
+		user: { id: '123456789012345678' },
+		replied: false,
+		deferred: false,
+		reply: mock(async () => {}),
+		client: createMockClient(),
 		...overrides,
-		isChatInputCommand: overrides['isChatInputCommand'] ?? mock(() => false),
-		isAutocomplete: overrides['isAutocomplete'] ?? mock(() => false),
-		isContextMenuCommand:
-			overrides['isContextMenuCommand'] ?? mock(() => false),
-		isMessageComponent: overrides['isMessageComponent'] ?? mock(() => false),
-		isModalSubmit: overrides['isModalSubmit'] ?? mock(() => false),
-		user: overrides['user'] ?? { id: '123456789012345678' },
-		replied: overrides['replied'] ?? false,
-		deferred: overrides['deferred'] ?? false,
-		reply: overrides['reply'] ?? mock(async () => {}),
 	} as unknown as Interaction;
 }
 

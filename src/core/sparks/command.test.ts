@@ -31,7 +31,7 @@ function createMockContextMenuCommand(name: string) {
 }
 
 /** Creates a mock context menu interaction with targetMessage. */
-function createMockContextMenuInteraction() {
+function createMockContextMenuInteraction(mockClient?: ReturnType<typeof createMockClient>) {
 	return {
 		commandName: 'Report Message',
 		user: { id: '123456789012345678' },
@@ -41,6 +41,7 @@ function createMockContextMenuInteraction() {
 		isContextMenuCommand: () => true,
 		targetId: '999888777666555444',
 		targetMessage: { id: '999888777666555444', content: 'test' },
+		client: mockClient ?? createMockClient(),
 	} as unknown as ContextMenuCommandInteraction;
 }
 
@@ -114,13 +115,12 @@ describe('defineCommand', () => {
 				action,
 			});
 
-			const client = createMockClient();
 			const interaction = createMockChatInputInteraction();
-			const result = await spark.execute(interaction, client);
+			const result = await spark.execute(interaction);
 
 			expect(result.ok).toBe(true);
 			expect(action).toHaveBeenCalledTimes(1);
-			expect(action).toHaveBeenCalledWith(interaction, client);
+			expect(action).toHaveBeenCalledWith(interaction);
 		});
 
 		test('runs guards and calls action on success', async () => {
@@ -132,9 +132,8 @@ describe('defineCommand', () => {
 				action,
 			});
 
-			const client = createMockClient();
 			const interaction = createMockChatInputInteraction();
-			const result = await spark.execute(interaction, client);
+			const result = await spark.execute(interaction);
 
 			expect(result.ok).toBe(true);
 			expect(guard).toHaveBeenCalledTimes(1);
@@ -150,9 +149,8 @@ describe('defineCommand', () => {
 				action,
 			});
 
-			const client = createMockClient();
 			const interaction = createMockChatInputInteraction();
-			const result = await spark.execute(interaction, client);
+			const result = await spark.execute(interaction);
 
 			expect(result.ok).toBe(false);
 			if (!result.ok) {
@@ -170,7 +168,8 @@ describe('defineCommand', () => {
 			});
 
 			const client = createMockClient();
-			await spark.execute(createMockChatInputInteraction(), client);
+			const interaction = createMockChatInputInteraction({ client });
+			await spark.execute(interaction);
 
 			expect(client.logger.debug).toHaveBeenCalledWith(
 				{ command: 'ping', reason: 'Denied' },
@@ -187,7 +186,7 @@ describe('defineCommand', () => {
 			});
 
 			const client = createMockClient();
-			await spark.execute(createMockChatInputInteraction(), client);
+			await spark.execute(createMockChatInputInteraction({ client }));
 
 			expect(client.logger.error).toHaveBeenCalledWith(
 				expect.objectContaining({ command: 'ping' }),
@@ -203,8 +202,7 @@ describe('defineCommand', () => {
 				},
 			});
 
-			const client = createMockClient();
-			const result = await spark.execute(createMockChatInputInteraction(), client);
+			const result = await spark.execute(createMockChatInputInteraction());
 
 			// Guard passed, so result is ok even though action failed
 			expect(result.ok).toBe(true);
@@ -220,8 +218,7 @@ describe('defineCommand', () => {
 				action,
 			});
 
-			const client = createMockClient();
-			await spark.execute(createMockChatInputInteraction(), client);
+			await spark.execute(createMockChatInputInteraction());
 
 			expect(guard1).toHaveBeenCalledTimes(1);
 			expect(guard2).not.toHaveBeenCalled();
@@ -256,8 +253,7 @@ describe('defineCommand', () => {
 				action,
 			});
 
-			const client = createMockClient();
-			await spark.execute(createMockChatInputInteraction(), client);
+			await spark.execute(createMockChatInputInteraction());
 
 			// guard2 should receive the output of guard1
 			const guard2Calls = (guard2 as ReturnType<typeof mock>).mock.calls;
@@ -284,8 +280,7 @@ describe('defineCommand', () => {
 				action,
 			});
 
-			const client = createMockClient();
-			const result = await spark.execute(createMockChatInputInteraction(), client);
+			const result = await spark.execute(createMockChatInputInteraction());
 
 			expect(result.ok).toBe(true);
 			expect(action).toHaveBeenCalledTimes(1);
@@ -300,13 +295,12 @@ describe('defineCommand', () => {
 				action,
 			});
 
-			const client = createMockClient();
 			const interaction = createMockContextMenuInteraction();
-			const result = await spark.execute(interaction, client);
+			const result = await spark.execute(interaction);
 
 			expect(result.ok).toBe(true);
 			expect(action).toHaveBeenCalledTimes(1);
-			expect(action).toHaveBeenCalledWith(interaction, client);
+			expect(action).toHaveBeenCalledWith(interaction);
 		});
 
 		test('runs guards on context menu interaction', async () => {
@@ -318,9 +312,8 @@ describe('defineCommand', () => {
 				action,
 			});
 
-			const client = createMockClient();
 			const interaction = createMockContextMenuInteraction();
-			const result = await spark.execute(interaction, client);
+			const result = await spark.execute(interaction);
 
 			expect(result.ok).toBe(true);
 			expect(guard).toHaveBeenCalledTimes(1);
@@ -338,9 +331,10 @@ describe('defineCommand', () => {
 			// Chat input interaction with isContextMenuCommand returning false
 			const interaction = createMockChatInputInteraction({
 				commandName: 'Report Message',
+				client,
 			});
 			Object.assign(interaction, { isContextMenuCommand: () => false });
-			const result = await spark.execute(interaction, client);
+			const result = await spark.execute(interaction);
 
 			expect(result.ok).toBe(false);
 			if (!result.ok) {
@@ -361,8 +355,8 @@ describe('defineCommand', () => {
 			});
 
 			const client = createMockClient();
-			const interaction = createMockContextMenuInteraction();
-			const result = await spark.execute(interaction, client);
+			const interaction = createMockContextMenuInteraction(client);
+			const result = await spark.execute(interaction);
 
 			expect(result.ok).toBe(false);
 			if (!result.ok) {
@@ -384,9 +378,8 @@ describe('defineCommand', () => {
 				action,
 			});
 
-			const client = createMockClient();
 			const interaction = createMockContextMenuInteraction();
-			const result = await spark.execute(interaction, client);
+			const result = await spark.execute(interaction);
 
 			expect(result.ok).toBe(false);
 			if (!result.ok) {
@@ -456,8 +449,7 @@ describe('defineCommandWithAutocomplete', () => {
 			action,
 		});
 
-		const client = createMockClient();
-		const result = await spark.execute(createMockChatInputInteraction(), client);
+		const result = await spark.execute(createMockChatInputInteraction());
 
 		expect(result.ok).toBe(true);
 		expect(action).toHaveBeenCalledTimes(1);
@@ -472,12 +464,11 @@ describe('defineCommandWithAutocomplete', () => {
 				action: async () => {},
 			});
 
-			const client = createMockClient();
 			const acInteraction = createMockAutocompleteInteraction();
-			await spark.executeAutocomplete!(acInteraction, client);
+			await spark.executeAutocomplete!(acInteraction);
 
 			expect(autocomplete).toHaveBeenCalledTimes(1);
-			expect(autocomplete).toHaveBeenCalledWith(acInteraction, client);
+			expect(autocomplete).toHaveBeenCalledWith(acInteraction);
 		});
 
 		test('logs warn when autocomplete handler throws', async () => {
@@ -491,8 +482,7 @@ describe('defineCommandWithAutocomplete', () => {
 
 			const client = createMockClient();
 			await spark.executeAutocomplete!(
-				createMockAutocompleteInteraction(),
-				client,
+				createMockAutocompleteInteraction({ client }),
 			);
 
 			expect(client.logger.warn).toHaveBeenCalledWith(
@@ -510,11 +500,9 @@ describe('defineCommandWithAutocomplete', () => {
 				action: async () => {},
 			});
 
-			const client = createMockClient();
 			// Should not throw
 			await spark.executeAutocomplete!(
 				createMockAutocompleteInteraction(),
-				client,
 			);
 		});
 	});

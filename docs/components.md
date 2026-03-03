@@ -10,7 +10,7 @@ import { defineComponent } from '@/core/sparks';
 export const myComponent = defineComponent({
   id: '...',       // how this component is matched (see below)
   guards: [],      // optional validation guards
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     // handle the interaction
   },
 });
@@ -27,7 +27,7 @@ The simplest option. The `customId` must be identical to the `id`.
 ```ts
 export const confirm = defineComponent({
   id: 'confirm-action',
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     await interaction.reply('Confirmed!');
   },
 });
@@ -50,7 +50,7 @@ Register a component with a trailing dash (`-`) to match any `customId` that sha
 export const ban = defineComponent({
   id: 'ban-',
   guards: [inCachedGuild],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     // interaction.customId is "ban-123456789012345678"
     const userId = interaction.customId.split('-').pop();
 
@@ -89,7 +89,7 @@ If the dynamic part is at the end, prefer a prefix match (`id: 'role-assign-'`) 
 ```ts
 export const roleAssign = defineComponent({
   id: 'role-assign-*',
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     const roleName = interaction.customId.split('-').pop();
     // roleName could be "moderator", "vip", "artist", etc.
   },
@@ -109,7 +109,7 @@ The dynamic segment is in the middle, so a prefix match can't work. This is wher
 ```ts
 export const confirmDelete = defineComponent({
   id: 'confirm-*-delete',
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     // interaction.customId is "confirm-123-delete"
     const itemId = interaction.customId.split('-')[1];
     // itemId = "123"
@@ -130,7 +130,7 @@ Use a `RegExp` for full control, including named capture groups. Best for comple
 ```ts
 export const pollVote = defineComponent({
   id: /^poll-vote-(?<pollId>\w+)-(?<option>\d+)$/,
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     const match = interaction.customId.match(
       /^poll-vote-(?<pollId>\w+)-(?<option>\d+)$/,
     );
@@ -180,7 +180,7 @@ import { PermissionFlagsBits } from 'discord.js';
 export const kick = defineComponent({
   id: 'kick-',
   guards: [inCachedGuild, hasPermission(PermissionFlagsBits.KickMembers)],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     const userId = interaction.customId.split('-').pop();
     await interaction.guild.members.kick(userId);
   },
@@ -196,7 +196,7 @@ Modal submissions are routed through the same component system. Define a compone
 ```ts
 export const feedbackModal = defineComponent({
   id: 'feedback-modal',
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     const response = interaction.fields.getTextInputValue('feedback-input');
     await interaction.reply({ content: 'Thanks for your feedback!', ephemeral: true });
   },

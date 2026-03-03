@@ -1,6 +1,6 @@
 import { relative } from 'node:path';
 import process from 'node:process';
-import type { UnicornClient } from '@/core/client';
+import type { Client } from 'discord.js';
 import { AppError } from '@/core/lib/logger';
 import type { CommandSpark } from './command';
 import type { ComponentSpark } from './component';
@@ -153,7 +153,7 @@ function getSparkId(spark: AnySpark): string {
  *
  * **THROWS** on any error during loading - startup errors should terminate the application.
  *
- * @param client - The UnicornClient to register sparks with
+ * @param client - The Discord client to register sparks with
  * @param directory - The directory to scan for spark files
  * @param options - Optional configuration
  * @returns Summary of loaded sparks
@@ -167,7 +167,7 @@ function getSparkId(spark: AnySpark): string {
  * ```
  */
 export async function loadSparks(
-	client: UnicornClient,
+	client: Client,
 	directory: string,
 	options: LoadSparksOptions = {},
 ): Promise<LoadSparksResult> {
@@ -263,7 +263,7 @@ export async function loadSparks(
  * Call this after loading sparks to get the commands for REST registration.
  */
 export function collectCommandBuilders(
-	client: UnicornClient,
+	client: Client,
 ): CommandSpark['command'][] {
 	return Array.from(client.commands.values()).map((spark) => spark.command);
 }

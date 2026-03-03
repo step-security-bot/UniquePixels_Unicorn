@@ -25,7 +25,7 @@ function createSpecialChannelGuard<
 		T,
 		WithSpecialChannel<T, K>
 	> {
-		return createGuard((input: T, _client) => {
+		return createGuard((input: T) => {
 			const { guild } = input;
 			const channel = guild[channelKey];
 
@@ -67,7 +67,7 @@ function createSpecialChannelGuard<
  * export const notifyCommand = defineCommand({
  *   command: builder,
  *   guards: [inCachedGuild, hasSystemChannel()],
- *   action: async (interaction, client) => {
+ *   action: async (interaction) => {
  *     // interaction.guild.systemChannel is guaranteed to exist
  *     await interaction.guild.systemChannel.send('Hello!');
  *   },
@@ -91,7 +91,7 @@ export const hasSystemChannel = createSpecialChannelGuard(
  * export const announceEvent = defineGatewayEvent({
  *   event: Events.GuildMemberAdd,
  *   guards: [hasPublicUpdatesChannel()],
- *   action: async (member, client) => {
+ *   action: async (member) => {
  *     // member.guild.publicUpdatesChannel is guaranteed to exist
  *     await member.guild.publicUpdatesChannel.send(`Welcome ${member}!`);
  *   },
@@ -114,7 +114,7 @@ export const hasPublicUpdatesChannel = createSpecialChannelGuard(
  * export const updateRulesCommand = defineCommand({
  *   command: builder,
  *   guards: [inCachedGuild, hasRulesChannel()],
- *   action: async (interaction, client) => {
+ *   action: async (interaction) => {
  *     // interaction.guild.rulesChannel is guaranteed to exist
  *     await interaction.guild.rulesChannel.send('Updated rules...');
  *   },
@@ -138,7 +138,7 @@ export const hasRulesChannel = createSpecialChannelGuard(
  * export const safetyAlert = defineGatewayEvent({
  *   event: Events.AutoModerationActionExecution,
  *   guards: [hasSafetyAlertsChannel()],
- *   action: async (execution, client) => {
+ *   action: async (execution) => {
  *     // execution.guild.safetyAlertsChannel is guaranteed to exist
  *     await execution.guild.safetyAlertsChannel.send('Safety alert...');
  *   },

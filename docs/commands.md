@@ -24,11 +24,11 @@ export const ping = defineCommand({
   command: new SlashCommandBuilder()
     .setName('ping')
     .setDescription('Check bot latency'),
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     const start = Date.now();
     const reply = await interaction.reply({ content: 'Pinging...', fetchReply: true });
     const roundtrip = reply.createdTimestamp - start;
-    await interaction.editReply(`Pong! Roundtrip: ${roundtrip}ms | WebSocket: ${client.ws.ping}ms`);
+    await interaction.editReply(`Pong! Roundtrip: ${roundtrip}ms | WebSocket: ${interaction.client.ws.ping}ms`);
   },
 });
 ```
@@ -48,7 +48,7 @@ export const kick = defineCommand({
     .setDescription('Kick a member')
     .addUserOption(opt => opt.setName('target').setDescription('Member to kick').setRequired(true)),
   guards: [inCachedGuild, hasPermission(PermissionFlagsBits.KickMembers)],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     // interaction.guild is guaranteed to exist after inCachedGuild
     const target = interaction.options.getUser('target', true);
     await interaction.guild.members.kick(target.id);
@@ -72,14 +72,14 @@ export const search = defineCommandWithAutocomplete({
     .addStringOption(opt =>
       opt.setName('query').setDescription('Search query').setAutocomplete(true),
     ),
-  autocomplete: async (interaction, client) => {
+  autocomplete: async (interaction) => {
     const query = interaction.options.getFocused();
     const results = await searchDatabase(query);
     await interaction.respond(
       results.slice(0, 25).map(r => ({ name: r.title, value: r.id })),
     );
   },
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     const query = interaction.options.getString('query', true);
     await interaction.reply(`You searched for: ${query}`);
   },
@@ -103,7 +103,7 @@ export const reportMessage = defineCommand<MessageContextMenuCommandInteraction>
   command: new ContextMenuCommandBuilder()
     .setName('Report Message')
     .setType(ApplicationCommandType.Message),
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     const message = interaction.targetMessage;
     await interaction.reply({ content: `Reported message ${message.id}`, flags: MessageFlags.Ephemeral });
   },
@@ -128,7 +128,7 @@ export const userInfo = defineCommand<UserContextMenuCommandInteraction>({
   command: new ContextMenuCommandBuilder()
     .setName('User Info')
     .setType(ApplicationCommandType.User),
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     const user = interaction.targetUser;
     await interaction.reply({ content: `User: ${user.tag}`, flags: MessageFlags.Ephemeral });
   },
@@ -147,11 +147,11 @@ A common approach is to put all subcommands in one `defineCommand` with a switch
 // Avoid this pattern
 export const manage = defineCommand({
   command: builder,
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     switch (interaction.options.getSubcommand()) {
-      case 'add': return handleAdd(interaction, client);
-      case 'remove': return handleRemove(interaction, client);
-      case 'list': return handleList(interaction, client);
+      case 'add': return handleAdd(interaction);
+      case 'remove': return handleRemove(interaction);
+      case 'list': return handleList(interaction);
     }
   },
 });
@@ -188,20 +188,20 @@ export const manage = defineCommandGroup({
   subcommands: {
     list: {
       // No extra guards needed for viewing
-      action: async (interaction, client) => {
+      action: async (interaction) => {
         await interaction.reply('Here are the items...');
       },
     },
     add: {
       // Per-subcommand guard: only staff can add
       guards: [hasPermission(PermissionFlagsBits.ManageGuild)],
-      action: async (interaction, client) => {
+      action: async (interaction) => {
         await interaction.reply('Item added!');
       },
     },
     remove: {
       guards: [hasPermission(PermissionFlagsBits.ManageGuild)],
-      action: async (interaction, client) => {
+      action: async (interaction) => {
         await interaction.reply('Item removed!');
       },
     },
@@ -240,11 +240,11 @@ export const settings = defineCommandGroup({
 
   groups: {
     roles: {
-      add:    { action: async (interaction, client) => { /* ... */ } },
-      remove: { action: async (interaction, client) => { /* ... */ } },
+      add:    { action: async (interaction) => { /* ... */ } },
+      remove: { action: async (interaction) => { /* ... */ } },
     },
     channels: {
-      set:    { action: async (interaction, client) => { /* ... */ } },
+      set:    { action: async (interaction) => { /* ... */ } },
     },
   },
 });
@@ -272,14 +272,14 @@ export const config = defineCommandGroup({
 
   // /config view
   subcommands: {
-    view: { action: async (interaction, client) => { /* ... */ } },
+    view: { action: async (interaction) => { /* ... */ } },
   },
 
   // /config notifications enable, /config notifications disable
   groups: {
     notifications: {
-      enable:  { action: async (interaction, client) => { /* ... */ } },
-      disable: { action: async (interaction, client) => { /* ... */ } },
+      enable:  { action: async (interaction) => { /* ... */ } },
+      disable: { action: async (interaction) => { /* ... */ } },
     },
   },
 });
@@ -313,23 +313,23 @@ export const lookup = defineCommandGroup({
 
   subcommands: {
     user: {
-      autocomplete: async (interaction, client) => {
+      autocomplete: async (interaction) => {
         const query = interaction.options.getFocused();
         const users = await searchUsers(query);
         await interaction.respond(users.map(u => ({ name: u.tag, value: u.id })));
       },
-      action: async (interaction, client) => {
+      action: async (interaction) => {
         const name = interaction.options.getString('name', true);
         await interaction.reply(`User: ${name}`);
       },
     },
     role: {
-      autocomplete: async (interaction, client) => {
+      autocomplete: async (interaction) => {
         const query = interaction.options.getFocused();
         const roles = await searchRoles(query);
         await interaction.respond(roles.map(r => ({ name: r.name, value: r.id })));
       },
-      action: async (interaction, client) => {
+      action: async (interaction) => {
         const name = interaction.options.getString('name', true);
         await interaction.reply(`Role: ${name}`);
       },
@@ -367,7 +367,7 @@ import { PermissionFlagsBits } from 'discord.js';
 
 export const add: SubcommandHandler = {
   guards: [hasPermission(PermissionFlagsBits.ManageGuild)],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     await interaction.reply('Item added!');
   },
 };
@@ -405,10 +405,10 @@ Understanding how commands execute helps when debugging:
 ```text
 Interaction arrives
   -> interaction-create routes by commandName
-  -> spark.execute(interaction, client)
-    -> runGuards(guards, interaction, client)
+  -> spark.execute(interaction)
+    -> runGuards(guards, interaction)
     -> if guards fail: return { ok: false, reason }
-    -> action(narrowedInteraction, client)
+    -> action(narrowedInteraction)
     -> if action throws: log error (don't crash)
 ```
 
@@ -417,15 +417,15 @@ Interaction arrives
 ```text
 Interaction arrives
   -> interaction-create routes by commandName
-  -> spark.execute(interaction, client)
-    -> runGuards(topLevelGuards, interaction, client)
+  -> spark.execute(interaction)
+    -> runGuards(topLevelGuards, interaction)
     -> if top guards fail: return { ok: false, reason }
     -> resolve subcommand from interaction.options
     -> find handler in subcommands{} or groups{}
     -> if no handler: return { ok: false, reason }
-    -> runGuards(subcommandGuards, narrowedInteraction, client)
+    -> runGuards(subcommandGuards, narrowedInteraction)
     -> if sub guards fail: return { ok: false, reason }
-    -> handler.action(narrowedInteraction, client)
+    -> handler.action(narrowedInteraction)
     -> if action throws: log error (don't crash)
 ```
 
@@ -477,7 +477,7 @@ Creates a command spark with autocomplete support. Extends `defineCommand` optio
 
 | Option | Type | Required | Description |
 |---|---|---|---|
-| `autocomplete` | `(interaction, client) => void` | Yes | Autocomplete handler |
+| `autocomplete` | `(interaction) => void \| Promise<void>` | Yes | Autocomplete handler |
 
 ### `defineCommandGroup<TGuarded>(options)`
 
@@ -500,4 +500,4 @@ A handler object for a single subcommand.
 |---|---|---|---|
 | `guards` | `Guard[]` | No | Guards specific to this subcommand |
 | `action` | `CommandAction<TGuarded>` | Yes | Handler function |
-| `autocomplete` | `(interaction, client) => void` | No | Autocomplete for this subcommand |
+| `autocomplete` | `(interaction) => void \| Promise<void>` | No | Autocomplete for this subcommand |

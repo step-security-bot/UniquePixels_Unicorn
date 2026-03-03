@@ -13,7 +13,7 @@ import { createGuard, type Guard, guardFail, guardPass } from '@/core/guards';
  * export const ownerCommand = defineCommand({
  *   command: builder,
  *   guards: [isUser(['123456789012345678'])],
- *   action: async (interaction, client) => { // ...
+ *   action: async (interaction) => { // ...
  *   },
  * });
  * ```
@@ -24,7 +24,7 @@ export function isUser<T extends Interaction>(
 ): Guard<T, T> {
 	const userIdSet = new Set(userIds);
 
-	return createGuard((input, _client) => {
+	return createGuard((input) => {
 		if (!userIdSet.has(input.user.id)) {
 			return guardFail(
 				message ?? 'You do not have permission to use this command.',

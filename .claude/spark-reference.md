@@ -21,10 +21,8 @@ import type { Result } from '@/core/lib/attempt';
 // Logger & error classes
 import { AppError, HttpError, ValidationError, DatabaseError } from '@/core/lib/logger';
 import type { ExtendedLogger } from '@/core/lib/logger';
-// Discord.js
-import { SlashCommandBuilder, ContextMenuCommandBuilder, ApplicationCommandType, Events, MessageFlags, PermissionFlagsBits, ChannelType as DChannelType, type ChatInputCommandInteraction, type CommandInteraction, type MessageContextMenuCommandInteraction, type UserContextMenuCommandInteraction, type AutocompleteInteraction, type ButtonInteraction, type StringSelectMenuInteraction, type ModalSubmitInteraction, type Message, type ClientEvents } from 'discord.js';
-// Client
-import type { UnicornClient } from '@/core/client';
+// Discord.js (Client is augmented with logger, config, commands, components, componentPatterns, scheduledJobs)
+import { SlashCommandBuilder, ContextMenuCommandBuilder, ApplicationCommandType, Events, MessageFlags, PermissionFlagsBits, ChannelType as DChannelType, type Client, type ChatInputCommandInteraction, type CommandInteraction, type MessageContextMenuCommandInteraction, type UserContextMenuCommandInteraction, type AutocompleteInteraction, type ButtonInteraction, type StringSelectMenuInteraction, type ModalSubmitInteraction, type Message, type ClientEvents } from 'discord.js';
 ```
 
 ## 1. defineCommand
@@ -33,7 +31,7 @@ import type { UnicornClient } from '@/core/client';
 defineCommand<TGuarded extends CommandInteraction = ChatInputCommandInteraction>({
   command: CommandBuilder,           // SlashCommandBuilder | ContextMenuCommandBuilder | variants
   guards?: readonly Guard<any,any>[], // default []
-  action: (interaction: TGuarded, client: UnicornClient) => void | Promise<void>,
+  action: (interaction: TGuarded) => void | Promise<void>,
 }): CommandSpark<TGuarded>
 ```
 
@@ -45,7 +43,7 @@ defineCommand<TGuarded extends CommandInteraction = ChatInputCommandInteraction>
 // Slash command (default TGuarded = ChatInputCommandInteraction)
 export const ping = defineCommand({
   command: new SlashCommandBuilder().setName('ping').setDescription('Pong'),
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     await interaction.reply('Pong!');
   },
 });
@@ -53,7 +51,7 @@ export const ping = defineCommand({
 // Context menu command (explicit generic for proper target access)
 export const report = defineCommand<MessageContextMenuCommandInteraction>({
   command: new ContextMenuCommandBuilder().setName('Report').setType(ApplicationCommandType.Message),
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     const message = interaction.targetMessage;
     await interaction.reply({ content: `Reported ${message.id}`, flags: MessageFlags.Ephemeral });
   },
@@ -66,8 +64,8 @@ export const report = defineCommand<MessageContextMenuCommandInteraction>({
 defineCommandWithAutocomplete<TGuarded extends ChatInputCommandInteraction = ChatInputCommandInteraction>({
   command: CommandBuilder,
   guards?: readonly Guard<any,any>[],
-  action: (interaction: TGuarded, client: UnicornClient) => void | Promise<void>,
-  autocomplete: (interaction: AutocompleteInteraction, client: UnicornClient) => void | Promise<void>,
+  action: (interaction: TGuarded) => void | Promise<void>,
+  autocomplete: (interaction: AutocompleteInteraction) => void | Promise<void>,
 }): CommandSpark<TGuarded>
 ```
 
@@ -76,8 +74,8 @@ defineCommandWithAutocomplete<TGuarded extends ChatInputCommandInteraction = Cha
 ```ts
 export const search = defineCommandWithAutocomplete({
   command: new SlashCommandBuilder().setName('search').setDescription('Search'),
-  action: async (interaction, client) => { /* ... */ },
-  autocomplete: async (interaction, client) => {
+  action: async (interaction) => { /* ... */ },
+  autocomplete: async (interaction) => {
     const value = interaction.options.getFocused();
     await interaction.respond([{ name: value, value }]);
   },
@@ -108,18 +106,18 @@ export const manage = defineCommandGroup({
   command: new SlashCommandBuilder().setName('manage').setDescription('Manage'),
   guards: [inCachedGuild],
   subcommands: {
-    list: { action: async (interaction, client) => { /* ... */ } },
+    list: { action: async (interaction) => { /* ... */ } },
     add: {
       guards: [hasPermission(PermissionFlagsBits.ManageRoles)],
-      action: async (interaction, client) => { /* ... */ },
+      action: async (interaction) => { /* ... */ },
     },
   },
   groups: {
     roles: {
-      add: { action: async (interaction, client) => { /* ... */ } },
+      add: { action: async (interaction) => { /* ... */ } },
       remove: {
-        autocomplete: async (interaction, client) => { /* ... */ },
-        action: async (interaction, client) => { /* ... */ },
+        autocomplete: async (interaction) => { /* ... */ },
+        action: async (interaction) => { /* ... */ },
       },
     },
   },
@@ -132,7 +130,7 @@ export const manage = defineCommandGroup({
 defineComponent<TInput extends AnyComponentInteraction = ButtonInteraction, TGuarded extends TInput = TInput>({
   id: CustomIdPattern,                    // string | RegExp
   guards?: readonly Guard<TInput,TGuarded>[],
-  action: (interaction: TGuarded, client: UnicornClient) => void | Promise<void>,
+  action: (interaction: TGuarded) => void | Promise<void>,
 }): ComponentSpark<TInput,TGuarded>
 ```
 
@@ -153,7 +151,7 @@ defineComponent<TInput extends AnyComponentInteraction = ButtonInteraction, TGua
 // Exact match button
 export const confirm = defineComponent({
   id: 'confirm-action',
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     await interaction.reply({ content: 'Confirmed!' });
   },
 });
@@ -161,7 +159,7 @@ export const confirm = defineComponent({
 // Prefix match (matches 'ban-123', 'ban-456', etc.)
 export const ban = defineComponent<ButtonInteraction>({
   id: 'ban-',
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     const userId = interaction.customId.split('-')[1];
     // ...
   },
@@ -170,7 +168,7 @@ export const ban = defineComponent<ButtonInteraction>({
 // Modal handler
 export const feedback = defineComponent<ModalSubmitInteraction>({
   id: 'feedback-modal',
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     const text = interaction.fields.getTextInputValue('feedback');
     // ...
   },
@@ -180,7 +178,7 @@ export const feedback = defineComponent<ModalSubmitInteraction>({
 export const roleSelect = defineComponent<StringSelectMenuInteraction, GuildInteraction<StringSelectMenuInteraction>>({
   id: 'role-select',
   guards: [inCachedGuild],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     // interaction.guild guaranteed non-null
   },
 });
@@ -195,7 +193,7 @@ defineGatewayEvent<E extends keyof ClientEvents, TGuarded extends ClientEvents[E
   event: E,
   once?: boolean,                              // default false
   guards?: readonly Guard<EventArg<E>,TGuarded>[],  // guards run on first event arg only
-  action: (...args: [TGuarded, ...Tail<ClientEvents[E]>, UnicornClient]) => void | Promise<void>,
+  action: (...args: [TGuarded, ...Tail<ClientEvents[E]>, Client]) => void | Promise<void>,
 }): GatewayEventSpark<E,TGuarded>
 ```
 
@@ -237,7 +235,7 @@ defineScheduledEvent({
   action: (ctx: ScheduledContext) => void | Promise<void>,
 }): ScheduledEventSpark
 
-// ScheduledContext = { client: UnicornClient, job: CronJob, fireDate: Date }
+// ScheduledContext = { client: Client, job: CronJob, fireDate: Date }
 ```
 
 **Spark shape:** `{ type:'scheduled-event', id, schedule, timezone, guards, action, execute(), register(), stop() }`
@@ -262,7 +260,7 @@ export const cleanup = defineScheduledEvent({
 
 ```ts
 type GuardResult<T> = { ok: true; value: T } | { ok: false; reason: string };
-type Guard<TInput, TOutput extends TInput = TInput> = (input: TInput, client: UnicornClient) => GuardResult<TOutput> | Promise<GuardResult<TOutput>>;
+type Guard<TInput, TOutput extends TInput = TInput> = (input: TInput) => GuardResult<TOutput> | Promise<GuardResult<TOutput>>;
 ```
 
 ### Guard utilities
@@ -271,22 +269,22 @@ type Guard<TInput, TOutput extends TInput = TInput> = (input: TInput, client: Un
 createGuard(fn)          // identity, aids type inference
 guardPass(value)         // { ok: true, value }
 guardFail(reason)        // { ok: false, reason }
-runGuard(guard, input, client)  // single guard
-runGuards(guards, input, client) // sequential chain, short-circuits on fail, type narrows
+runGuard(guard, input)   // single guard
+runGuards(guards, input) // sequential chain, short-circuits on fail, type narrows
 ```
 
 ### Creating custom guards
 
 ```ts
 // Simple constant guard
-export const myGuard = createGuard<InputType, OutputType>((input, client) => {
+export const myGuard = createGuard<InputType, OutputType>((input) => {
   if (condition) return guardPass(input as OutputType);
   return guardFail('Reason');
 });
 
 // Factory guard (parameterized)
 export function myGuard<T extends SomeConstraint>(param: ParamType): Guard<T, T> {
-  return createGuard((input, client) => {
+  return createGuard((input) => {
     if (check(input, param)) return guardPass(input);
     return guardFail('Reason');
   });

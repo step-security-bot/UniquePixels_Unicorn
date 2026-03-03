@@ -1,9 +1,9 @@
 import type {
 	AutocompleteInteraction,
 	ChatInputCommandInteraction,
+	Client,
 	CommandInteraction,
 } from 'discord.js';
-import type { UnicornClient } from '@/core/client';
 import type { Guard, GuardResult } from '@/core/guards';
 import { runGuards } from '@/core/guards';
 import { attempt, isError } from '@/core/lib/attempt';
@@ -30,10 +30,7 @@ export interface SubcommandHandler<
 	/** The action to execute when this subcommand is invoked */
 	action: CommandAction<TGuarded>;
 	/** Optional autocomplete handler for this subcommand */
-	autocomplete?: (
-		interaction: AutocompleteInteraction,
-		client: UnicornClient,
-	) => void | Promise<void>;
+	autocomplete?: (interaction: AutocompleteInteraction) => void | Promise<void>;
 }
 
 /**
@@ -97,13 +94,13 @@ function findSubcommandHandler<TGuarded extends ChatInputCommandInteraction>(
  *   guards: [inCachedGuild],
  *   subcommands: {
  *     list: {
- *       action: async (interaction, client) => {
+ *       action: async (interaction) => {
  *         await interaction.reply('Here are the items...');
  *       },
  *     },
  *     add: {
  *       guards: [hasPermission(PermissionFlagsBits.ManageGuild)],
- *       action: async (interaction, client) => {
+ *       action: async (interaction) => {
  *         await interaction.reply('Item added!');
  *       },
  *     },
@@ -161,16 +158,15 @@ export function defineCommandGroup<
 	async function runSubcommand(
 		handler: SubcommandHandler<TGuarded>,
 		narrowed: TGuarded,
-		client: UnicornClient,
 		routeKey: string,
 	): Promise<GuardResult<TGuarded>> {
+		const client = narrowed.client;
 		let finalNarrowed = narrowed;
 
 		if (handler.guards && handler.guards.length > 0) {
 			const subGuardResult = await runGuards(
 				handler.guards as readonly Guard<unknown, unknown>[],
 				narrowed,
-				client,
 			);
 
 			if (!subGuardResult.ok) {
@@ -184,9 +180,7 @@ export function defineCommandGroup<
 			finalNarrowed = subGuardResult.value as TGuarded;
 		}
 
-		const actionResult = await attempt(() =>
-			handler.action(finalNarrowed, client),
-		);
+		const actionResult = await attempt(() => handler.action(finalNarrowed));
 
 		if (isError(actionResult)) {
 			client.logger.error(
@@ -200,8 +194,8 @@ export function defineCommandGroup<
 
 	async function resolveAndRunAutocomplete(
 		interaction: AutocompleteInteraction,
-		client: UnicornClient,
 	): Promise<void> {
+		const client = interaction.client;
 		const group = interaction.options.getSubcommandGroup(false);
 		const sub = interaction.options.getSubcommand(false);
 		const handler = findSubcommandHandler(group, sub, subcommands, groups);
@@ -215,7 +209,7 @@ export function defineCommandGroup<
 			return;
 		}
 
-		const result = await attempt(() => autocomplete(interaction, client));
+		const result = await attempt(() => autocomplete(interaction));
 
 		if (isError(result)) {
 			client.logger.warn(
@@ -250,8 +244,9 @@ export function defineCommandGroup<
 
 		async execute(
 			interaction: CommandInteraction,
-			client: UnicornClient,
 		): Promise<GuardResult<TGuarded>> {
+			const client = interaction.client;
+
 			// Command groups only support slash commands (subcommands don't exist for context menus)
 			if (!interaction.isChatInputCommand()) {
 				return {
@@ -264,7 +259,6 @@ export function defineCommandGroup<
 			const guardResult = await runGuards(
 				guards as readonly Guard<unknown, unknown>[],
 				interaction,
-				client,
 			);
 
 			if (!guardResult.ok) {
@@ -303,24 +297,18 @@ export function defineCommandGroup<
 				: `${command.name} ${subcommand}`;
 
 			// 3. Run subcommand guards + action
-			const subResult = await runSubcommand(
-				handler,
-				narrowed,
-				client,
-				routeKey,
-			);
+			const subResult = await runSubcommand(handler, narrowed, routeKey);
 
 			return subResult;
 		},
 
 		async executeAutocomplete(
 			interaction: AutocompleteInteraction,
-			client: UnicornClient,
 		): Promise<void> {
-			await resolveAndRunAutocomplete(interaction, client);
+			await resolveAndRunAutocomplete(interaction);
 		},
 
-		register(client: UnicornClient): void {
+		register(client: Client): void {
 			// Safe cast: CommandGroupSpark satisfies BaseCommandSpark structurally for storage.
 			// Type narrowing happens at runtime via guards in execute().
 			client.commands.set(command.name, spark as BaseCommandSpark);

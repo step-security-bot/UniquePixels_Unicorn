@@ -22,7 +22,7 @@ export type ChannelTypedInteraction<
  * export const threadCommand = defineCommand({
  *   command: builder,
  *   guards: [channelType(ChannelType.PublicThread, ChannelType.PrivateThread)],
- *   action: async (interaction, client) => { // ...
+ *   action: async (interaction) => { // ...
  *   },
  * });
  * ```
@@ -33,7 +33,7 @@ export function channelType<T extends Interaction, C extends ChannelType>(
 	const typeSet = new Set(types);
 	const typeNames = types.map((t) => ChannelType[t]).join(', ');
 
-	return createGuard((input, _client) => {
+	return createGuard((input) => {
 		if (!(input.channel && typeSet.has(input.channel.type as C))) {
 			return guardFail(`This command can only be used in: ${typeNames}`);
 		}

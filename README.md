@@ -41,7 +41,7 @@ src/
 ├── config.ts                   # Application configuration
 ├── sentry.ts                   # Sentry initialization (preloaded)
 ├── core/
-│   ├── client/                 # UnicornClient interface and initialization
+│   ├── client/                 # Client augmentation and initialization
 │   ├── configuration/          # Zod schemas, parseConfig(), type-safe IDs
 │   ├── guards/                 # Guard infrastructure (runGuards, createGuard)
 │   ├── logger/                 # Pino logger with Sentry transport
@@ -66,8 +66,8 @@ export const ping = defineCommand({
   command: new SlashCommandBuilder()
     .setName('ping')
     .setDescription('Check bot latency'),
-  action: async (interaction, client) => {
-    await interaction.reply(`Pong! ${client.ws.ping}ms`);
+  action: async (interaction) => {
+    await interaction.reply(`Pong! ${interaction.client.ws.ping}ms`);
   },
 });
 ```
@@ -79,7 +79,7 @@ import { defineComponent } from '@/core/sparks';
 
 export const confirmButton = defineComponent({
   id: 'confirm-action',
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     await interaction.reply('Confirmed!');
   },
 });
@@ -127,7 +127,7 @@ export const kick = defineCommand({
     .setName('kick')
     .setDescription('Kick a member'),
   guards: [inCachedGuild, hasPermission(PermissionFlagsBits.KickMembers)],
-  action: async (interaction, client) => {
+  action: async (interaction) => {
     // interaction is typed with guild guaranteed
     await interaction.reply('Done.');
   },

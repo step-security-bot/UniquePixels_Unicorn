@@ -27,7 +27,7 @@ export type GuildInteraction<T extends Interaction = Interaction> = T & {
  * export const myCommand = defineCommand({
  *   command: builder,
  *   guards: [inCachedGuild],
- *   action: async (interaction, client) => {
+ *   action: async (interaction) => {
  *     // interaction is narrowed to GuildInteraction — guild, member, guildId guaranteed
  *   },
  * });
@@ -36,7 +36,7 @@ export type GuildInteraction<T extends Interaction = Interaction> = T & {
 export const inCachedGuild: Guard<Interaction, GuildInteraction> = createGuard<
 	Interaction,
 	GuildInteraction
->((interaction, _client) => {
+>((interaction) => {
 	if (!interaction.inCachedGuild()) {
 		return guardFail('This command can only be used in a server.');
 	}

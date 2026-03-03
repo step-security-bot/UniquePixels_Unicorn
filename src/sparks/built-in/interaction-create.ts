@@ -1,11 +1,11 @@
 import {
 	type AutocompleteInteraction,
+	type Client,
 	type CommandInteraction,
 	Events,
 	type Interaction,
 	MessageFlags,
 } from 'discord.js';
-import type { UnicornClient } from '@/core/client';
 import { attempt, isError } from '@/core/lib/attempt';
 import {
 	type AnyComponentInteraction,
@@ -20,9 +20,9 @@ import {
  */
 async function handleCommand(
 	interaction: CommandInteraction,
-	client: UnicornClient,
 	label: string,
 ): Promise<void> {
+	const client = interaction.client;
 	const spark = client.commands.get(interaction.commandName);
 
 	if (!spark) {
@@ -38,7 +38,7 @@ async function handleCommand(
 		return;
 	}
 
-	const result = await spark.execute(interaction, client);
+	const result = await spark.execute(interaction);
 
 	if (!(result.ok || interaction.replied || interaction.deferred)) {
 		await interaction.reply({
@@ -53,8 +53,8 @@ async function handleCommand(
  */
 async function handleAutocomplete(
 	interaction: AutocompleteInteraction,
-	client: UnicornClient,
 ): Promise<void> {
+	const client = interaction.client;
 	const spark = client.commands.get(interaction.commandName);
 
 	if (!spark) {
@@ -73,7 +73,7 @@ async function handleAutocomplete(
 		return;
 	}
 
-	await spark.executeAutocomplete(interaction, client);
+	await spark.executeAutocomplete(interaction);
 }
 
 /**
@@ -81,10 +81,10 @@ async function handleAutocomplete(
  */
 async function handleComponent(
 	interaction: AnyComponentInteraction,
-	client: UnicornClient,
 	label: string,
 	notFoundMessage: string,
 ): Promise<void> {
+	const client = interaction.client;
 	const spark = findComponentSpark(
 		client.components,
 		client.componentPatterns,
@@ -105,7 +105,7 @@ async function handleComponent(
 		return;
 	}
 
-	const result = await spark.execute(interaction, client);
+	const result = await spark.execute(interaction);
 
 	if (!(result.ok || interaction.replied || interaction.deferred)) {
 		await interaction.reply({
@@ -121,7 +121,7 @@ async function handleComponent(
 async function safeHandle(
 	handler: () => Promise<void>,
 	context: string,
-	client: UnicornClient,
+	client: Client,
 ): Promise<void> {
 	const result = await attempt(handler);
 	if (isError(result)) {
@@ -151,23 +151,23 @@ export const interactionCreate: GatewayEventSpark<
 > = defineGatewayEvent({
 	event: Events.InteractionCreate,
 	once: false,
-	action: async (interaction: Interaction, client: UnicornClient) => {
+	action: async (interaction: Interaction, client: Client) => {
 		// Route based on interaction type, wrapped in safe error handling
 		if (interaction.isChatInputCommand()) {
 			await safeHandle(
-				() => handleCommand(interaction, client, 'command'),
+				() => handleCommand(interaction, 'command'),
 				`command:${interaction.commandName}`,
 				client,
 			);
 		} else if (interaction.isAutocomplete()) {
 			await safeHandle(
-				() => handleAutocomplete(interaction, client),
+				() => handleAutocomplete(interaction),
 				`autocomplete:${interaction.commandName}`,
 				client,
 			);
 		} else if (interaction.isContextMenuCommand()) {
 			await safeHandle(
-				() => handleCommand(interaction, client, 'context menu command'),
+				() => handleCommand(interaction, 'context menu command'),
 				`context-menu:${interaction.commandName}`,
 				client,
 			);
@@ -176,7 +176,6 @@ export const interactionCreate: GatewayEventSpark<
 				() =>
 					handleComponent(
 						interaction,
-						client,
 						'component',
 						'This button/menu is no longer available.',
 					),
@@ -188,7 +187,6 @@ export const interactionCreate: GatewayEventSpark<
 				() =>
 					handleComponent(
 						interaction,
-						client,
 						'modal',
 						'This form is no longer available.',
 					),

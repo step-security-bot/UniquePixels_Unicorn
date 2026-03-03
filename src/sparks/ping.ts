@@ -18,12 +18,12 @@ export const ping = defineCommand({
 		.setName('ping')
 		.setDescription('Check bot latency and responsiveness'),
 
-	action: async (interaction, client) => {
+	action: async (interaction) => {
 		await interaction.reply({ content: 'Pinging...' });
 		const sent = await interaction.fetchReply();
 
 		const roundTrip = sent.createdTimestamp - interaction.createdTimestamp;
-		const wsLatency = client.ws.ping;
+		const wsLatency = interaction.client.ws.ping;
 
 		await interaction.editReply(
 			`Pong! Roundtrip: ${roundTrip}ms | WebSocket: ${wsLatency}ms`,
