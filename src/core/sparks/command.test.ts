@@ -239,10 +239,11 @@ describe('defineCommand', () => {
 				ChatInputCommandInteraction,
 				ChatInputCommandInteraction
 			>;
-			const guard2 = mock(
+			const guard2Mock = mock(
 				(input: ChatInputCommandInteraction) =>
 					({ ok: true as const, value: input }) as const,
-			) as unknown as Guard<
+			);
+			const guard2 = guard2Mock as unknown as Guard<
 				ChatInputCommandInteraction,
 				ChatInputCommandInteraction
 			>;
@@ -256,9 +257,8 @@ describe('defineCommand', () => {
 			await spark.execute(createMockChatInputInteraction());
 
 			// guard2 should receive the output of guard1
-			const guard2Calls = (guard2 as ReturnType<typeof mock>).mock.calls;
-			expect(guard2Calls).toHaveLength(1);
-			const guard2Input = guard2Calls[0]?.[0] as Record<
+			expect(guard2Mock).toHaveBeenCalledTimes(1);
+			const guard2Input = guard2Mock.mock.calls[0]?.[0] as unknown as Record<
 				string,
 				unknown
 			>;

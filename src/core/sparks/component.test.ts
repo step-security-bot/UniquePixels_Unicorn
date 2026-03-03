@@ -13,6 +13,30 @@ import {
 	matchCustomId,
 } from './component';
 
+// ─── Test Helpers ────────────────────────────────────────────────
+
+/** Cast a defineComponent result to the base type used by lookup collections. */
+function asBase(spark: { key: string }): BaseComponentSpark {
+	return spark as unknown as BaseComponentSpark;
+}
+
+/** Create empty lookup collections and a shorthand find function. */
+function createLookupContext() {
+	const components = new Map<string, BaseComponentSpark>();
+	const patterns: BaseComponentSpark[] = [];
+	const find = (customId: string) =>
+		findComponentSpark(components, patterns, customId);
+	return { components, patterns, find };
+}
+
+/** Register a prefix spark and return the lookup context + spark. */
+function setupPrefix(id = 'ban-') {
+	const ctx = createLookupContext();
+	const spark = defineComponent({ id, action: async () => {} });
+	ctx.components.set(id, asBase(spark));
+	return { ...ctx, spark };
+}
+
 describe('matchCustomId', () => {
 	describe('exact string matching', () => {
 		test('matches exact string', () => {
@@ -469,31 +493,24 @@ describe('ComponentSpark.register', () => {
 
 describe('findComponentSpark', () => {
 	test('finds spark by exact match', () => {
-		const components = new Map<string, BaseComponentSpark>();
-		const componentPatterns: BaseComponentSpark[] = [];
+		const { components, find } = createLookupContext();
 		const spark = defineComponent({
 			id: 'exact-match',
 			action: async () => {},
 		});
-		components.set('exact-match', spark as unknown as BaseComponentSpark);
+		components.set('exact-match', asBase(spark));
 
-		const found = findComponentSpark(components, componentPatterns, 'exact-match');
-
-		expect(found).toBe(spark);
+		expect(find('exact-match')).toBe(spark);
 	});
 
 	test('returns undefined when no match found', () => {
-		const components = new Map<string, BaseComponentSpark>();
-		const componentPatterns: BaseComponentSpark[] = [];
+		const { find } = createLookupContext();
 
-		const found = findComponentSpark(components, componentPatterns, 'nonexistent');
-
-		expect(found).toBeUndefined();
+		expect(find('nonexistent')).toBeUndefined();
 	});
 
 	test('prefers exact match over pattern match', () => {
-		const components = new Map<string, BaseComponentSpark>();
-		const componentPatterns: BaseComponentSpark[] = [];
+		const { components, patterns, find } = createLookupContext();
 
 		const exactSpark = defineComponent({
 			id: 'button-123',
@@ -505,39 +522,26 @@ describe('findComponentSpark', () => {
 			action: async () => {},
 		});
 
-		// Exact match goes to components map
-		components.set('button-123', exactSpark as unknown as BaseComponentSpark);
-		// Pattern goes to componentPatterns array
-		componentPatterns.push(patternSpark as unknown as BaseComponentSpark);
+		components.set('button-123', asBase(exactSpark));
+		patterns.push(asBase(patternSpark));
 
-		const found = findComponentSpark(components, componentPatterns, 'button-123');
-
-		expect(found).toBe(exactSpark);
+		expect(find('button-123')).toBe(exactSpark);
 	});
 
 	test('falls back to pattern matching', () => {
-		const components = new Map<string, BaseComponentSpark>();
-		const componentPatterns: BaseComponentSpark[] = [];
+		const { patterns, find } = createLookupContext();
 
 		const patternSpark = defineComponent({
 			id: 'action-*-confirm',
 			action: async () => {},
 		});
-		// Pattern goes to componentPatterns array
-		componentPatterns.push(patternSpark as unknown as BaseComponentSpark);
+		patterns.push(asBase(patternSpark));
 
-		const found = findComponentSpark(
-			components,
-			componentPatterns,
-			'action-delete-confirm',
-		);
-
-		expect(found).toBe(patternSpark);
+		expect(find('action-delete-confirm')).toBe(patternSpark);
 	});
 
 	test('finds first matching pattern', () => {
-		const components = new Map<string, BaseComponentSpark>();
-		const componentPatterns: BaseComponentSpark[] = [];
+		const { patterns, find } = createLookupContext();
 
 		const spark1 = defineComponent({
 			id: 'prefix-*',
@@ -549,150 +553,68 @@ describe('findComponentSpark', () => {
 			action: async () => {},
 		});
 
-		// Both are patterns, so they go to componentPatterns
-		componentPatterns.push(spark1 as unknown as BaseComponentSpark, spark2 as unknown as BaseComponentSpark);
+		patterns.push(asBase(spark1), asBase(spark2));
 
-		const found = findComponentSpark(components, componentPatterns, 'prefix-123');
-
-		// First pattern should match
-		expect(found).toBe(spark1);
+		expect(find('prefix-123')).toBe(spark1);
 	});
 
 	test('handles regex patterns in search', () => {
-		const components = new Map<string, BaseComponentSpark>();
-		const componentPatterns: BaseComponentSpark[] = [];
+		const { patterns, find } = createLookupContext();
 
 		const regexSpark = defineComponent({
 			id: /^modal-(?<type>\w+)-(?<id>\d+)$/,
 			action: async () => {},
 		});
-		componentPatterns.push(regexSpark as unknown as BaseComponentSpark);
+		patterns.push(asBase(regexSpark));
 
-		const found = findComponentSpark(
-			components,
-			componentPatterns,
-			'modal-submit-456',
-		);
-
-		expect(found).toBe(regexSpark);
+		expect(find('modal-submit-456')).toBe(regexSpark);
 	});
 
 	test('handles empty components map and patterns array', () => {
-		const components = new Map<string, BaseComponentSpark>();
-		const componentPatterns: BaseComponentSpark[] = [];
+		const { find } = createLookupContext();
 
-		const found = findComponentSpark(components, componentPatterns, 'anything');
-
-		expect(found).toBeUndefined();
+		expect(find('anything')).toBeUndefined();
 	});
 
 	describe('prefix matching', () => {
 		test('matches component by prefix pattern', () => {
-			const components = new Map<string, BaseComponentSpark>();
-			const componentPatterns: BaseComponentSpark[] = [];
-			const spark = defineComponent({
-				id: 'ban-',
-				action: async () => {},
-			});
-			components.set('ban-', spark as unknown as BaseComponentSpark);
+			const { find, spark } = setupPrefix();
 
-			const found = findComponentSpark(
-				components,
-				componentPatterns,
-				'ban-123456789012345678',
-			);
-
-			expect(found).toBe(spark);
+			expect(find('ban-123456789012345678')).toBe(spark);
 		});
 
 		test('matches multi-segment prefix', () => {
-			const components = new Map<string, BaseComponentSpark>();
-			const componentPatterns: BaseComponentSpark[] = [];
-			const spark = defineComponent({
-				id: 'ticket-close-',
-				action: async () => {},
-			});
-			components.set('ticket-close-', spark as unknown as BaseComponentSpark);
+			const { find, spark } = setupPrefix('ticket-close-');
 
-			const found = findComponentSpark(
-				components,
-				componentPatterns,
-				'ticket-close-123456789012345678',
-			);
-
-			expect(found).toBe(spark);
+			expect(find('ticket-close-123456789012345678')).toBe(spark);
 		});
 
 		test('matches non-digit suffix', () => {
-			const components = new Map<string, BaseComponentSpark>();
-			const componentPatterns: BaseComponentSpark[] = [];
-			const spark = defineComponent({
-				id: 'role-assign-',
-				action: async () => {},
-			});
-			components.set('role-assign-', spark as unknown as BaseComponentSpark);
+			const { find, spark } = setupPrefix('role-assign-');
 
-			const found = findComponentSpark(
-				components,
-				componentPatterns,
-				'role-assign-moderator',
-			);
-
-			expect(found).toBe(spark);
+			expect(find('role-assign-moderator')).toBe(spark);
 		});
 
 		test('does not match multi-segment suffix', () => {
-			const components = new Map<string, BaseComponentSpark>();
-			const componentPatterns: BaseComponentSpark[] = [];
-			const spark = defineComponent({
-				id: 'ban-',
-				action: async () => {},
-			});
-			components.set('ban-', spark as unknown as BaseComponentSpark);
+			const { find } = setupPrefix();
 
-			const found = findComponentSpark(
-				components,
-				componentPatterns,
-				'ban-foo-bar',
-			);
-
-			expect(found).toBeUndefined();
+			expect(find('ban-foo-bar')).toBeUndefined();
 		});
 
 		test('does not match empty suffix', () => {
-			const components = new Map<string, BaseComponentSpark>();
-			const componentPatterns: BaseComponentSpark[] = [];
-			const spark = defineComponent({
-				id: 'ban-',
-				action: async () => {},
-			});
-			components.set('ban-', spark as unknown as BaseComponentSpark);
+			const { find } = setupPrefix();
 
-			const found = findComponentSpark(
-				components,
-				componentPatterns,
-				'ban-',
-			);
-
-			expect(found).toBeUndefined();
+			expect(find('ban-')).toBeUndefined();
 		});
 
 		test('does not match when prefix is not registered', () => {
-			const components = new Map<string, BaseComponentSpark>();
-			const componentPatterns: BaseComponentSpark[] = [];
+			const { find } = createLookupContext();
 
-			const found = findComponentSpark(
-				components,
-				componentPatterns,
-				'unknown-123456789012345678',
-			);
-
-			expect(found).toBeUndefined();
+			expect(find('unknown-123456789012345678')).toBeUndefined();
 		});
 
 		test('prefers exact match over prefix match', () => {
-			const components = new Map<string, BaseComponentSpark>();
-			const componentPatterns: BaseComponentSpark[] = [];
+			const { components, find } = createLookupContext();
 
 			const exactSpark = defineComponent({
 				id: 'ban-123456789012345678',
@@ -703,71 +625,35 @@ describe('findComponentSpark', () => {
 				action: async () => {},
 			});
 
-			components.set(
-				'ban-123456789012345678',
-				exactSpark as unknown as BaseComponentSpark,
-			);
-			components.set('ban-', prefixSpark as unknown as BaseComponentSpark);
+			components.set('ban-123456789012345678', asBase(exactSpark));
+			components.set('ban-', asBase(prefixSpark));
 
-			const found = findComponentSpark(
-				components,
-				componentPatterns,
-				'ban-123456789012345678',
-			);
-
-			expect(found).toBe(exactSpark);
+			expect(find('ban-123456789012345678')).toBe(exactSpark);
 		});
 
 		test('does not match when customId has no separator', () => {
-			const components = new Map<string, BaseComponentSpark>();
-			const componentPatterns: BaseComponentSpark[] = [];
-			const spark = defineComponent({
-				id: 'ban-',
-				action: async () => {},
-			});
-			components.set('ban-', spark as unknown as BaseComponentSpark);
+			const { find } = setupPrefix();
 
-			const found = findComponentSpark(
-				components,
-				componentPatterns,
-				'ban123456789',
-			);
-
-			expect(found).toBeUndefined();
+			expect(find('ban123456789')).toBeUndefined();
 		});
 
 		test('does not match when separator is at position 0', () => {
-			const components = new Map<string, BaseComponentSpark>();
-			const componentPatterns: BaseComponentSpark[] = [];
+			const { find } = createLookupContext();
 
-			const found = findComponentSpark(
-				components,
-				componentPatterns,
-				'-123456789012345678',
-			);
-
-			expect(found).toBeUndefined();
+			expect(find('-123456789012345678')).toBeUndefined();
 		});
 
 		test('falls through to pattern matching when prefix has no match', () => {
-			const components = new Map<string, BaseComponentSpark>();
-			const componentPatterns: BaseComponentSpark[] = [];
+			const { patterns, find } = createLookupContext();
 
 			const patternSpark = defineComponent({
 				id: /^action-\d+$/,
 				action: async () => {},
 			});
-			componentPatterns.push(patternSpark as unknown as BaseComponentSpark);
+			patterns.push(asBase(patternSpark));
 
-			const found = findComponentSpark(
-				components,
-				componentPatterns,
-				'action-123456789',
-			);
-
-			expect(found).toBe(patternSpark);
+			expect(find('action-123456789')).toBe(patternSpark);
 		});
-
 	});
 });
 

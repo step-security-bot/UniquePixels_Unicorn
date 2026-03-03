@@ -17,6 +17,27 @@ function createMockCommand(name: string) {
 	return { name } as unknown as SlashCommandBuilder;
 }
 
+/** Build mock getSubcommand/getSubcommandGroup options. */
+function createMockSubcommandOptions(
+	subcommand: string | null,
+	group: string | null,
+) {
+	return {
+		getSubcommand: mock((required?: boolean) => {
+			if (subcommand === null && required !== false) {
+				throw new Error('No subcommand');
+			}
+			return subcommand;
+		}),
+		getSubcommandGroup: mock((required?: boolean) => {
+			if (group === null && required !== false) {
+				throw new Error('No subcommand group');
+			}
+			return group;
+		}),
+	};
+}
+
 function createMockInteraction(
 	subcommand: string | null,
 	group: string | null = null,
@@ -24,20 +45,7 @@ function createMockInteraction(
 ): ChatInputCommandInteraction {
 	return {
 		commandName: 'test',
-		options: {
-			getSubcommand: mock((required?: boolean) => {
-				if (subcommand === null && required !== false) {
-					throw new Error('No subcommand');
-				}
-				return subcommand;
-			}),
-			getSubcommandGroup: mock((required?: boolean) => {
-				if (group === null && required !== false) {
-					throw new Error('No subcommand group');
-				}
-				return group;
-			}),
-		},
+		options: createMockSubcommandOptions(subcommand, group),
 		user: { id: '123456789012345678' },
 		replied: false,
 		deferred: false,
@@ -55,18 +63,7 @@ function createMockAutocompleteInteraction(
 	return {
 		commandName: 'test',
 		options: {
-			getSubcommand: mock((required?: boolean) => {
-				if (subcommand === null && required !== false) {
-					throw new Error('No subcommand');
-				}
-				return subcommand;
-			}),
-			getSubcommandGroup: mock((required?: boolean) => {
-				if (group === null && required !== false) {
-					throw new Error('No subcommand group');
-				}
-				return group;
-			}),
+			...createMockSubcommandOptions(subcommand, group),
 			getFocused: mock(() => ''),
 		},
 		respond: mock(async () => {}),
@@ -503,10 +500,11 @@ describe('CommandGroupSpark.execute', () => {
 
 			await spark.execute(interaction);
 
-			const errorCalls = (client.logger.error as ReturnType<typeof mock>)
-				.mock.calls;
-			expect(errorCalls).toHaveLength(1);
-			expect(errorCalls[0]?.[0].command).toBe('manage add');
+			expect(client.logger.error).toHaveBeenCalledTimes(1);
+			expect(client.logger.error).toHaveBeenCalledWith(
+				expect.objectContaining({ command: 'manage add' }),
+				expect.any(String),
+			);
 		});
 
 		test('includes route key in error log for grouped subcommand', async () => {
@@ -528,10 +526,11 @@ describe('CommandGroupSpark.execute', () => {
 
 			await spark.execute(interaction);
 
-			const errorCalls = (client.logger.error as ReturnType<typeof mock>)
-				.mock.calls;
-			expect(errorCalls).toHaveLength(1);
-			expect(errorCalls[0]?.[0].command).toBe('settings roles add');
+			expect(client.logger.error).toHaveBeenCalledTimes(1);
+			expect(client.logger.error).toHaveBeenCalledWith(
+				expect.objectContaining({ command: 'settings roles add' }),
+				expect.any(String),
+			);
 		});
 	});
 });

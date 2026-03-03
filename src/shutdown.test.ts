@@ -198,7 +198,7 @@ describe('createShutdownHandler', () => {
 	test('logs warning when logger shutdown fails', async () => {
 		const client = createMockClient();
 		const error = new Error('flush failed');
-		(client.logger.shutdown as ReturnType<typeof mock>) = mock(() => {
+		client.logger.shutdown = mock(() => {
 			throw error;
 		});
 		const deps = createMockDeps({ client });

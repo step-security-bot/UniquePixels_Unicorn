@@ -1,4 +1,4 @@
-import { describe, expect, mock, spyOn, test } from 'bun:test';
+import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import { CronJob } from 'cron';
 import type { Client } from 'discord.js';
 import { createMockClient } from '@/core/lib/test-helpers';
@@ -20,6 +20,27 @@ function createMockContext(
 		fireDate: new Date('2025-01-01T00:00:00Z'),
 		...overrides,
 	};
+}
+
+/** Spy on CronJob.from to capture the onTick callback. Restores automatically via afterEach. */
+let activeCronSpy: ReturnType<typeof spyOn> | undefined;
+afterEach(() => {
+	activeCronSpy?.mockRestore();
+	activeCronSpy = undefined;
+});
+
+function spyCronFrom() {
+	let onTick: (() => Promise<void>) | undefined;
+	activeCronSpy = spyOn(CronJob, 'from').mockImplementation(
+		((params: { onTick: () => Promise<void> }) => {
+			onTick = params.onTick;
+			return {
+				stop: mock(() => {}),
+				nextDate: () => ({ toISO: () => '2025-01-01T00:00:00.000Z' }),
+			} as unknown as CronJob;
+		}) as unknown as typeof CronJob.from,
+	);
+	return { getOnTick: () => onTick };
 }
 
 // ─── Tests ───────────────────────────────────────────────────────
@@ -262,17 +283,7 @@ describe('defineScheduledEvent', () => {
 		});
 
 		test('onTick callback calls execute and logs debug', async () => {
-			let capturedOnTick: (() => Promise<void>) | undefined;
-			const fakeJob = {
-				stop: mock(() => {}),
-				nextDate: () => ({ toISO: () => '2025-01-01T00:00:00.000Z' }),
-			};
-			const cronFromSpy = spyOn(CronJob, 'from').mockImplementation(
-				((params: { onTick: () => Promise<void> }) => {
-					capturedOnTick = params.onTick;
-					return fakeJob as unknown as CronJob;
-				}) as unknown as typeof CronJob.from,
-			);
+			const cron = spyCronFrom();
 
 			const action = mock(async () => {});
 			const spark = defineScheduledEvent({
@@ -284,12 +295,10 @@ describe('defineScheduledEvent', () => {
 			const client = createMockClient();
 			spark.register(client);
 
-			// Invoke captured onTick directly instead of waiting for real time
-			expect(capturedOnTick).toBeDefined();
-			await capturedOnTick!();
+			expect(cron.getOnTick()).toBeDefined();
+			await cron.getOnTick()!();
 
 			spark.stop(client);
-			cronFromSpy.mockRestore();
 
 			expect(action).toHaveBeenCalled();
 			expect(client.logger.debug).toHaveBeenCalledWith(
@@ -299,17 +308,7 @@ describe('defineScheduledEvent', () => {
 		});
 
 		test('onTick callback catches unexpected errors from execute', async () => {
-			let capturedOnTick: (() => Promise<void>) | undefined;
-			const fakeJob = {
-				stop: mock(() => {}),
-				nextDate: () => ({ toISO: () => '2025-01-01T00:00:00.000Z' }),
-			};
-			const cronFromSpy = spyOn(CronJob, 'from').mockImplementation(
-				((params: { onTick: () => Promise<void> }) => {
-					capturedOnTick = params.onTick;
-					return fakeJob as unknown as CronJob;
-				}) as unknown as typeof CronJob.from,
-			);
+			const cron = spyCronFrom();
 
 			const throwingGuard = mock(() => {
 				throw new Error('guard exploded');
@@ -324,12 +323,10 @@ describe('defineScheduledEvent', () => {
 			const client = createMockClient();
 			spark.register(client);
 
-			// Invoke captured onTick directly instead of waiting for real time
-			expect(capturedOnTick).toBeDefined();
-			await capturedOnTick!();
+			expect(cron.getOnTick()).toBeDefined();
+			await cron.getOnTick()!();
 
 			spark.stop(client);
-			cronFromSpy.mockRestore();
 
 			expect(client.logger.error).toHaveBeenCalledWith(
 				expect.objectContaining({ scheduled: 'err-test' }),

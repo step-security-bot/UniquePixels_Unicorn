@@ -308,9 +308,10 @@ describe('defineGatewayEvent', () => {
 
 			expect(client.on).toHaveBeenCalledTimes(1);
 			expect(client.once).not.toHaveBeenCalled();
-
-			const calls = (client.on as ReturnType<typeof mock>).mock.calls;
-			expect(calls[0]?.[0]).toBe(Events.MessageCreate);
+			expect(client.on).toHaveBeenCalledWith(
+				Events.MessageCreate,
+				expect.any(Function),
+			);
 		});
 
 		test('calls client.once for one-time events', () => {
@@ -325,9 +326,10 @@ describe('defineGatewayEvent', () => {
 
 			expect(client.once).toHaveBeenCalledTimes(1);
 			expect(client.on).not.toHaveBeenCalled();
-
-			const calls = (client.once as ReturnType<typeof mock>).mock.calls;
-			expect(calls[0]?.[0]).toBe(Events.ClientReady);
+			expect(client.once).toHaveBeenCalledWith(
+				Events.ClientReady,
+				expect.any(Function),
+			);
 		});
 
 		test('registered handler catches errors from execute', async () => {
@@ -338,12 +340,12 @@ describe('defineGatewayEvent', () => {
 				},
 			});
 
-			const client = createMockClient();
+			const onMock = mock((..._args: unknown[]) => {});
+			const client = createMockClient({ on: onMock });
 			spark.register(client);
 
 			// Get the registered handler
-			const calls = (client.on as ReturnType<typeof mock>).mock.calls;
-			const handler = calls[0]?.[1] as (
+			const handler = onMock.mock.calls[0]?.[1] as (
 				...args: unknown[]
 			) => Promise<void>;
 
@@ -366,11 +368,11 @@ describe('defineGatewayEvent', () => {
 				action: async () => {},
 			});
 
-			const client = createMockClient();
+			const onMock = mock((..._args: unknown[]) => {});
+			const client = createMockClient({ on: onMock });
 			spark.register(client);
 
-			const calls = (client.on as ReturnType<typeof mock>).mock.calls;
-			const handler = calls[0]?.[1] as (
+			const handler = onMock.mock.calls[0]?.[1] as (
 				...args: unknown[]
 			) => Promise<void>;
 
