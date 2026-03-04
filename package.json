@@ -12,7 +12,7 @@
 	"type": "module",
 	"scripts": {
 		"start": "bun ./src/index.ts",
-		"qa": "bun qa:format && bun qa:lint; bun qa:tsc; bun qa:test",
+		"qa": "bun scripts/qa.ts",
 		"qa:format": "biome format --write",
 		"qa:lint": "biome check",
 		"qa:lint-ci": "biome ci --reporter=github --diagnostic-level=warn",
