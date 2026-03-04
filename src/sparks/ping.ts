@@ -1,4 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
+import { attempt, isError } from '@/core/lib/attempt';
 import { defineCommand } from '@/core/sparks';
 
 /**
@@ -19,14 +20,40 @@ export const ping = defineCommand({
 		.setDescription('Check bot latency and responsiveness'),
 
 	action: async (interaction) => {
-		await interaction.reply({ content: 'Pinging...' });
-		const sent = await interaction.fetchReply();
+		const replyResult = await attempt(() =>
+			interaction.reply({ content: 'Pinging...' }),
+		);
+		if (isError(replyResult)) {
+			interaction.client.logger.error(
+				{ err: replyResult.error },
+				'Ping reply failed',
+			);
+			return;
+		}
 
-		const roundTrip = sent.createdTimestamp - interaction.createdTimestamp;
+		const fetchResult = await attempt(() => interaction.fetchReply());
+		if (isError(fetchResult)) {
+			interaction.client.logger.error(
+				{ err: fetchResult.error },
+				'Ping fetchReply failed',
+			);
+			return;
+		}
+
+		const roundTrip =
+			fetchResult.data.createdTimestamp - interaction.createdTimestamp;
 		const wsLatency = interaction.client.ws.ping;
 
-		await interaction.editReply(
-			`Pong! Roundtrip: ${roundTrip}ms | WebSocket: ${wsLatency}ms`,
+		const editResult = await attempt(() =>
+			interaction.editReply(
+				`Pong! Roundtrip: ${roundTrip}ms | WebSocket: ${wsLatency}ms`,
+			),
 		);
+		if (isError(editResult)) {
+			interaction.client.logger.error(
+				{ err: editResult.error },
+				'Ping editReply failed',
+			);
+		}
 	},
 });

@@ -15,6 +15,55 @@ describe('ping spark', () => {
 		expect(ping.guards).toEqual([]);
 	});
 
+	test('logs error when reply fails', async () => {
+		const client = createMockClient();
+		const interaction = createMockChatInputInteraction({
+			commandName: 'ping',
+			reply: mock(async () => {
+				throw new Error('Discord API error');
+			}),
+			client,
+		});
+
+		await ping.execute(interaction);
+
+		expect(client.logger.error).toHaveBeenCalledTimes(1);
+	});
+
+	test('logs error when fetchReply fails', async () => {
+		const client = createMockClient();
+		const interaction = createMockChatInputInteraction({
+			commandName: 'ping',
+			reply: mock(async () => {}),
+			fetchReply: mock(async () => {
+				throw new Error('Discord API error');
+			}),
+			client,
+		});
+
+		await ping.execute(interaction);
+
+		expect(client.logger.error).toHaveBeenCalledTimes(1);
+	});
+
+	test('logs error when editReply fails', async () => {
+		const client = createMockClient();
+		const interaction = createMockChatInputInteraction({
+			commandName: 'ping',
+			createdTimestamp: 1000000,
+			reply: mock(async () => {}),
+			fetchReply: mock(async () => ({ createdTimestamp: 1000042 })),
+			editReply: mock(async () => {
+				throw new Error('Discord API error');
+			}),
+			client,
+		});
+
+		await ping.execute(interaction);
+
+		expect(client.logger.error).toHaveBeenCalledTimes(1);
+	});
+
 	test('replies with latency calculation', async () => {
 		const client = createMockClient({ ws: { ping: 38 } });
 
