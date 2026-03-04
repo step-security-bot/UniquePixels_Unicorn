@@ -21,10 +21,10 @@ This means you no longer need to manually order common dependencies like `inCach
 
 ```ts
 // Before: manual ordering required
-guards: [inCachedGuild, hasPermission(PermissionFlagsBits.ManageMessages)]
+guards: [g.inCachedGuild, g.hasPermission(PermissionFlagsBits.ManageMessages)]
 
 // After: auto-resolved (inCachedGuild is prepended automatically)
-guards: [hasPermission(PermissionFlagsBits.ManageMessages)]
+guards: [g.hasPermission(PermissionFlagsBits.ManageMessages)]
 ```
 
 > [!NOTE]
@@ -32,28 +32,12 @@ guards: [hasPermission(PermissionFlagsBits.ManageMessages)]
 
 ## Built-in Guards
 
-Unicorn ships with a set of guards covering the most common validation needs. Import them from `@/guards/built-in`:
+Unicorn ships with a set of guards covering the most common validation needs. Import them as a namespace from `@/guards/built-in` for convenient autocomplete:
 
 ```ts
-import {
-  inCachedGuild,
-  hasPermission,
-  botHasPermission,
-  hasPermissionIn,
-  botHasPermissionIn,
-  hasChannel,
-  resolveChannelFromGuard,
-  channelType,
-  isUser,
-  notBot,
-  messageInGuild,
-  cleanupRateLimits,
-  rateLimit,
-  hasSystemChannel,
-  hasPublicUpdatesChannel,
-  hasRulesChannel,
-  hasSafetyAlertsChannel,
-} from '@/guards/built-in';
+import * as g from '@/guards/built-in';
+
+// Use as: g.inCachedGuild, g.hasPermission(...), g.botHasPermissionIn(...), etc.
 ```
 
 ### `inCachedGuild`
@@ -65,13 +49,13 @@ This is the most commonly used guard and is automatically prepended by permissio
 ```ts
 import { SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { inCachedGuild } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 
 export const serverInfo = defineCommand({
   command: new SlashCommandBuilder()
     .setName('server-info')
     .setDescription('Show server information'),
-  guards: [inCachedGuild],
+  guards: [g.inCachedGuild],
   action: async (interaction) => {
     // interaction.guild, interaction.member, interaction.guildId are all guaranteed
     await interaction.reply(`Server: ${interaction.guild.name} (${interaction.guild.memberCount} members)`);
@@ -88,14 +72,14 @@ Checks that the invoking user has the specified guild-level permission(s). Requi
 ```ts
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { hasPermission } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 
 export const purge = defineCommand({
   command: new SlashCommandBuilder()
     .setName('purge')
     .setDescription('Delete messages in bulk')
     .addIntegerOption(opt => opt.setName('count').setDescription('Number of messages').setRequired(true)),
-  guards: [hasPermission(PermissionFlagsBits.ManageMessages)],
+  guards: [g.hasPermission(PermissionFlagsBits.ManageMessages)],
   action: async (interaction) => {
     const count = interaction.options.getInteger('count', true);
     await interaction.channel.bulkDelete(count);
@@ -107,13 +91,13 @@ export const purge = defineCommand({
 You can check multiple permissions at once:
 
 ```ts
-guards: [hasPermission(PermissionFlagsBits.ManageMessages | PermissionFlagsBits.ManageChannels)]
+guards: [g.hasPermission(PermissionFlagsBits.ManageMessages | PermissionFlagsBits.ManageChannels)]
 ```
 
 An optional second argument overrides the default failure message:
 
 ```ts
-hasPermission(PermissionFlagsBits.Administrator, 'This command is restricted to administrators.')
+g.hasPermission(PermissionFlagsBits.Administrator, 'This command is restricted to administrators.')
 ```
 
 **Default failure message:** "You need the following permission(s): ManageMessages" (lists the resolved permission names).
@@ -127,13 +111,13 @@ For channel-level bot permission checks, use `botHasPermissionIn` instead.
 ```ts
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { botHasPermission } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 
 export const modCommand = defineCommand({
   command: new SlashCommandBuilder()
     .setName('mod')
     .setDescription('Moderation command'),
-  guards: [botHasPermission(PermissionFlagsBits.ManageRoles)],
+  guards: [g.botHasPermission(PermissionFlagsBits.ManageRoles)],
   action: async (interaction) => {
     await interaction.reply('Moderation action performed.');
   },
@@ -151,14 +135,14 @@ When `channelGuard` is omitted, checks the interaction channel. When provided, r
 ```ts
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { hasPermissionIn, hasSystemChannel } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 
 // Check perms in the interaction channel
 export const sendEmbed = defineCommand({
   command: new SlashCommandBuilder()
     .setName('send-embed')
     .setDescription('Send a rich embed'),
-  guards: [hasPermissionIn(PermissionFlagsBits.EmbedLinks)],
+  guards: [g.hasPermissionIn(PermissionFlagsBits.EmbedLinks)],
   action: async (interaction) => {
     await interaction.reply({ embeds: [/* ... */] });
   },
@@ -169,7 +153,7 @@ export const announce = defineCommand({
   command: new SlashCommandBuilder()
     .setName('announce')
     .setDescription('Post to system channel'),
-  guards: [hasPermissionIn(PermissionFlagsBits.SendMessages, hasSystemChannel)],
+  guards: [g.hasPermissionIn(PermissionFlagsBits.SendMessages, g.hasSystemChannel)],
   action: async (interaction) => {
     await interaction.guild.systemChannel.send('Announcement!');
     await interaction.reply({ content: 'Announcement posted!', ephemeral: true });
@@ -188,14 +172,14 @@ When `channelGuard` is omitted, checks the interaction channel. When provided, r
 ```ts
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { botHasPermissionIn, hasSystemChannel } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 
 // Check bot perms in the interaction channel
 export const embed = defineCommand({
   command: new SlashCommandBuilder()
     .setName('embed')
     .setDescription('Send a rich embed'),
-  guards: [botHasPermissionIn(PermissionFlagsBits.EmbedLinks)],
+  guards: [g.botHasPermissionIn(PermissionFlagsBits.EmbedLinks)],
   action: async (interaction) => {
     await interaction.reply({ embeds: [/* ... */] });
   },
@@ -206,7 +190,7 @@ export const welcome = defineCommand({
   command: new SlashCommandBuilder()
     .setName('welcome')
     .setDescription('Post to system channel'),
-  guards: [botHasPermissionIn(PermissionFlagsBits.SendMessages, hasSystemChannel)],
+  guards: [g.botHasPermissionIn(PermissionFlagsBits.SendMessages, g.hasSystemChannel)],
   action: async (interaction) => {
     await interaction.guild.systemChannel.send('Welcome message!');
     await interaction.reply({ content: 'Posted!', ephemeral: true });
@@ -225,23 +209,23 @@ Accepts either a static ID string or a function that resolves the ID at executio
 ```ts
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { botHasPermissionIn, hasChannel } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 
 // Static ID known at module scope
-const logChannel = hasChannel('123456789012345678');
+const logChannel = g.hasChannel('123456789012345678');
 
 export const logCommand = defineCommand({
   command: new SlashCommandBuilder()
     .setName('log')
     .setDescription('Post to the log channel'),
-  guards: [botHasPermissionIn(PermissionFlagsBits.SendMessages, logChannel)],
+  guards: [g.botHasPermissionIn(PermissionFlagsBits.SendMessages, logChannel)],
   action: async (interaction) => {
     // logChannel is guaranteed to exist, bot has SendMessages
   },
 });
 
 // Dynamic ID resolved at execution time
-const configChannel = hasChannel((input) => input.client.config.ids.channel.logs);
+const configChannel = g.hasChannel((input) => input.client.config.ids.channel.logs);
 ```
 
 **Failure message:** "Channel 123456789012345678 was not found in this server."
@@ -253,13 +237,13 @@ Ensures the interaction is in a channel of the specified type(s). Narrows the in
 ```ts
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { channelType } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 
 export const threadOnly = defineCommand({
   command: new SlashCommandBuilder()
     .setName('thread-only')
     .setDescription('Only works in threads'),
-  guards: [channelType(ChannelType.PublicThread, ChannelType.PrivateThread)],
+  guards: [g.channelType(ChannelType.PublicThread, ChannelType.PrivateThread)],
   action: async (interaction) => {
     await interaction.reply('This is a thread!');
   },
@@ -275,13 +259,13 @@ Restricts usage to a whitelist of user IDs. Useful for owner-only or admin-only 
 ```ts
 import { SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { isUser } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 
 export const deploy = defineCommand({
   command: new SlashCommandBuilder()
     .setName('deploy')
     .setDescription('Deploy slash commands'),
-  guards: [isUser(['123456789012345678', '987654321098765432'])],
+  guards: [g.isUser(['123456789012345678', '987654321098765432'])],
   action: async (interaction) => {
     await interaction.reply({ content: 'Deploying commands...', ephemeral: true });
   },
@@ -297,11 +281,11 @@ Filters out messages from bots. This guard operates on `Message`, not `Interacti
 ```ts
 import { Events } from 'discord.js';
 import { defineGatewayEvent } from '@/core/sparks';
-import { notBot } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 
 export const messageLogger = defineGatewayEvent({
   event: Events.MessageCreate,
-  guards: [notBot],
+  guards: [g.notBot],
   action: (message, client) => {
     client.logger.info({ content: message.content }, 'New message from a human');
   },
@@ -317,11 +301,11 @@ Ensures a message was sent in a guild (not a DM). Like `notBot`, this guard oper
 ```ts
 import { Events } from 'discord.js';
 import { defineGatewayEvent } from '@/core/sparks';
-import { messageInGuild, notBot } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 
 export const guildMessages = defineGatewayEvent({
   event: Events.MessageCreate,
-  guards: [notBot, messageInGuild],
+  guards: [g.notBot, g.messageInGuild],
   action: (message, client) => {
     // message is narrowed to Message<true> — guild properties guaranteed
     client.logger.info({ guild: message.guildId }, 'Guild message received');
@@ -345,14 +329,14 @@ Limits how many times a user (or other key) can trigger an action within a time 
 ```ts
 import { SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { rateLimit } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 
 // 3 uses per 30 seconds per user
 export const generate = defineCommand({
   command: new SlashCommandBuilder()
     .setName('generate')
     .setDescription('Generate something expensive'),
-  guards: [rateLimit({ limit: 3, window: 30_000 })],
+  guards: [g.rateLimit({ limit: 3, window: 30_000 })],
   action: async (interaction) => {
     await interaction.reply('Generating...');
   },
@@ -364,15 +348,15 @@ With a custom key function for per-guild rate limiting:
 ```ts
 import { SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { inCachedGuild, rateLimit } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 
 export const announce = defineCommand({
   command: new SlashCommandBuilder()
     .setName('announce')
     .setDescription('Make an announcement'),
   guards: [
-    inCachedGuild,
-    rateLimit({
+    g.inCachedGuild,
+    g.rateLimit({
       limit: 10,
       window: 60_000,
       keyFn: (interaction) => `${interaction.guildId}:${interaction.user.id}`,
@@ -401,13 +385,13 @@ Ensures the guild has a system channel configured. The system channel is used fo
 ```ts
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { botHasPermissionIn, hasSystemChannel } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 
 export const announce = defineCommand({
   command: new SlashCommandBuilder()
     .setName('announce')
     .setDescription('Post an announcement to the system channel'),
-  guards: [botHasPermissionIn(PermissionFlagsBits.SendMessages, hasSystemChannel)],
+  guards: [g.botHasPermissionIn(PermissionFlagsBits.SendMessages, g.hasSystemChannel)],
   action: async (interaction) => {
     // interaction.guild.systemChannel is guaranteed to exist, bot can send
     await interaction.guild.systemChannel.send('Important announcement!');
@@ -419,7 +403,7 @@ export const announce = defineCommand({
 For existence-only checks (no bot perm verification):
 
 ```ts
-guards: [inCachedGuild, hasSystemChannel]
+guards: [g.inCachedGuild, g.hasSystemChannel]
 ```
 
 **Failure message:** "This server does not have a system channel configured."
@@ -429,7 +413,7 @@ guards: [inCachedGuild, hasSystemChannel]
 Ensures the guild has a public updates channel configured.
 
 ```ts
-guards: [botHasPermissionIn(PermissionFlagsBits.SendMessages, hasPublicUpdatesChannel)]
+guards: [g.botHasPermissionIn(PermissionFlagsBits.SendMessages, g.hasPublicUpdatesChannel)]
 ```
 
 **Failure message:** "This server does not have a public updates channel configured."
@@ -439,7 +423,7 @@ guards: [botHasPermissionIn(PermissionFlagsBits.SendMessages, hasPublicUpdatesCh
 Ensures the guild has a rules channel configured.
 
 ```ts
-guards: [botHasPermissionIn(PermissionFlagsBits.SendMessages, hasRulesChannel)]
+guards: [g.botHasPermissionIn(PermissionFlagsBits.SendMessages, g.hasRulesChannel)]
 ```
 
 **Failure message:** "This server does not have a rules channel configured."
@@ -449,7 +433,7 @@ guards: [botHasPermissionIn(PermissionFlagsBits.SendMessages, hasRulesChannel)]
 Ensures the guild has a safety alerts channel configured.
 
 ```ts
-guards: [botHasPermissionIn(PermissionFlagsBits.SendMessages, hasSafetyAlertsChannel)]
+guards: [g.botHasPermissionIn(PermissionFlagsBits.SendMessages, g.hasSafetyAlertsChannel)]
 ```
 
 **Failure message:** "This server does not have a safety alerts channel configured."
@@ -459,10 +443,10 @@ guards: [botHasPermissionIn(PermissionFlagsBits.SendMessages, hasSafetyAlertsCha
 Guards execute sequentially. Each guard receives the output of the previous guard as its input. This means guards can progressively narrow the type:
 
 ```ts
-guards: [inCachedGuild, hasPermission(PermissionFlagsBits.KickMembers)]
-//        ^                ^
-//        Narrows to        Receives GuildInteraction (member guaranteed),
-//        GuildInteraction  checks permissions on the member
+guards: [g.inCachedGuild, g.hasPermission(PermissionFlagsBits.KickMembers)]
+//        ^                  ^
+//        Narrows to          Receives GuildInteraction (member guaranteed),
+//        GuildInteraction    checks permissions on the member
 ```
 
 If any guard fails, the chain short-circuits and the remaining guards do not run.
@@ -473,7 +457,7 @@ For `command` and `component` sparks, `resolveGuards()` automatically prepends m
 
 ```ts
 // Auto-resolves: [inCachedGuild, hasSystemChannel, botHasPermissionIn(SendMessages, hasSystemChannel)]
-guards: [botHasPermissionIn(PermissionFlagsBits.SendMessages, hasSystemChannel)]
+guards: [g.botHasPermissionIn(PermissionFlagsBits.SendMessages, g.hasSystemChannel)]
 ```
 
 The resolver:
@@ -493,7 +477,7 @@ Guards declare which spark types they're incompatible with. Using an incompatibl
 defineScheduledEvent({
   id: 'test',
   schedule: '0 0 * * *',
-  guards: [inCachedGuild], // Error!
+  guards: [g.inCachedGuild], // Error!
   action: async () => {},
 });
 ```
@@ -508,7 +492,7 @@ With `defineCommandGroup`, guards compose at two levels:
 ```ts
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { defineCommandGroup } from '@/core/sparks';
-import { hasPermission, inCachedGuild, rateLimit } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 
 export const channel = defineCommandGroup({
   command: new SlashCommandBuilder()
@@ -519,7 +503,7 @@ export const channel = defineCommandGroup({
     .addSubcommand(sub => sub.setName('nuke').setDescription('Delete and recreate a channel')),
 
   // Runs for ALL subcommands
-  guards: [inCachedGuild],
+  guards: [g.inCachedGuild],
 
   subcommands: {
     info: {
@@ -530,7 +514,7 @@ export const channel = defineCommandGroup({
     },
     lock: {
       // Only moderators can lock
-      guards: [hasPermission(PermissionFlagsBits.ManageChannels)],
+      guards: [g.hasPermission(PermissionFlagsBits.ManageChannels)],
       action: async (interaction) => {
         await interaction.reply('Channel locked.');
       },
@@ -538,8 +522,8 @@ export const channel = defineCommandGroup({
     nuke: {
       // Admins only, with rate limiting
       guards: [
-        hasPermission(PermissionFlagsBits.Administrator),
-        rateLimit({ limit: 1, window: 300_000 }),
+        g.hasPermission(PermissionFlagsBits.Administrator),
+        g.rateLimit({ limit: 1, window: 300_000 }),
       ],
       action: async (interaction) => {
         await interaction.reply('Channel will be recreated.');
@@ -569,13 +553,14 @@ Pass the narrowed type explicitly to get type safety:
 ```ts
 import { type ChatInputCommandInteraction, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { type GuildInteraction, hasPermission, inCachedGuild } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
+import type { GuildInteraction } from '@/guards/built-in';
 
 export const kick = defineCommand<GuildInteraction<ChatInputCommandInteraction>>({
   command: new SlashCommandBuilder()
     .setName('kick')
     .setDescription('Kick a member'),
-  guards: [inCachedGuild, hasPermission(PermissionFlagsBits.KickMembers)],
+  guards: [g.inCachedGuild, g.hasPermission(PermissionFlagsBits.KickMembers)],
   action: async (interaction) => {
     // interaction.guild, interaction.member, etc. are all non-null
     await interaction.guild.members.kick(interaction.options.getUser('target', true));
@@ -616,6 +601,7 @@ A guard that narrows the input type, similar to `inCachedGuild`:
 ```ts
 import type { ChatInputCommandInteraction, GuildMember, Interaction } from 'discord.js';
 import { createGuard, type Guard, guardFail, guardPass } from '@/core/guards';
+import * as g from '@/guards/built-in';
 
 type InteractionWithBoostedMember = Interaction & {
   member: GuildMember & { premiumSince: Date };
@@ -631,7 +617,7 @@ export const isServerBooster: Guard<
   return guardPass(interaction as InteractionWithBoostedMember);
 }, {
   name: 'isServerBooster',
-  requires: [inCachedGuild],
+  requires: [g.inCachedGuild],
 });
 ```
 
@@ -681,7 +667,7 @@ When guards are provided to a `define*` function, the framework automatically na
 // Without auto-narrowing: guild.systemChannel is `TextChannel | null` — requires `!`
 const joinLogBefore = defineGatewayEvent({
   event: Events.GuildMemberAdd,
-  guards: [hasSystemChannel],
+  guards: [g.hasSystemChannel],
   action: (member) => {
     member.guild.systemChannel!.send('Welcome!'); // ← non-null assertion
   },
@@ -690,7 +676,7 @@ const joinLogBefore = defineGatewayEvent({
 // With auto-narrowing: guild.systemChannel is `TextChannel` — no assertion needed
 export const joinLog = defineGatewayEvent({
   event: Events.GuildMemberAdd,
-  guards: [hasSystemChannel],
+  guards: [g.hasSystemChannel],
   action: (member) => {
     member.guild.systemChannel.send('Welcome!'); // ← type-safe
   },

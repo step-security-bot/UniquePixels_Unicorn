@@ -12,8 +12,8 @@ import type { CommandSpark, CommandBuilder, SubcommandHandler, ComponentSpark, C
 // Guards
 import { createGuard, guardPass, guardFail, getGuardMeta, resolveGuards, processGuards } from '@/core/guards';
 import type { Guard, GuardResult, GuardMeta, NarrowedBy, ProcessGuardsOptions } from '@/core/guards';
-// Built-in guards
-import { inCachedGuild, hasPermission, botHasPermission, hasPermissionIn, botHasPermissionIn, hasChannel, channelType, isUser, notBot, messageInGuild, rateLimit, hasSystemChannel, hasPublicUpdatesChannel, hasRulesChannel, hasSafetyAlertsChannel } from '@/guards/built-in';
+// Built-in guards (namespace import for autocomplete DX)
+import * as g from '@/guards/built-in';
 import type { GuildInteraction, ChannelTypedInteraction } from '@/guards/built-in';
 // Error handling
 import { attempt, isError, unwrap, unwrapOr } from '@/core/lib/attempt';
@@ -106,11 +106,11 @@ defineCommandGroup<TGuarded extends ChatInputCommandInteraction = ChatInputComma
 ```ts
 export const manage = defineCommandGroup({
   command: new SlashCommandBuilder().setName('manage').setDescription('Manage'),
-  guards: [inCachedGuild],
+  guards: [g.inCachedGuild],
   subcommands: {
     list: { action: async (interaction) => { /* ... */ } },
     add: {
-      guards: [hasPermission(PermissionFlagsBits.ManageRoles)],
+      guards: [g.hasPermission(PermissionFlagsBits.ManageRoles)],
       action: async (interaction) => { /* ... */ },
     },
   },
@@ -180,7 +180,7 @@ export const feedback = defineComponent<ModalSubmitInteraction>({
 // Select menu with guard
 export const roleSelect = defineComponent<StringSelectMenuInteraction, GuildInteraction<StringSelectMenuInteraction>>({
   id: 'role-select',
-  guards: [inCachedGuild],
+  guards: [g.inCachedGuild],
   action: async (interaction) => {
     // interaction.guild guaranteed non-null
   },
@@ -218,7 +218,7 @@ export const ready = defineGatewayEvent({
 // Message event with guard
 export const messageLog = defineGatewayEvent({
   event: Events.MessageCreate,
-  guards: [notBot, messageInGuild],
+  guards: [g.notBot, g.messageInGuild],
   action: (message, client) => {
     // message is Message<true> (guild message, non-bot)
     client.logger.debug({ guild: message.guildId }, 'Message received');
@@ -327,7 +327,7 @@ export const myGuard = createGuard<InputType, OutputType>((input) => {
   return guardFail('Reason');
 }, {
   name: 'myGuard',
-  requires: [inCachedGuild],
+  requires: [g.inCachedGuild],
   incompatibleWith: ['scheduled-event'],
 });
 
@@ -374,7 +374,7 @@ type NarrowedBy<TBase, Guards extends readonly Guard<any, any>[]>
 // Auto-narrowing: interaction.guild is non-null without !
 export const cmd = defineCommand({
   command: builder,
-  guards: [inCachedGuild],
+  guards: [g.inCachedGuild],
   action: (interaction) => {
     interaction.guild.id;  // no ! needed — type is narrowed
   },
@@ -383,7 +383,7 @@ export const cmd = defineCommand({
 // Works with all define* functions and multiple guards
 export const evt = defineGatewayEvent({
   event: Events.GuildMemberAdd,
-  guards: [hasSystemChannel],
+  guards: [g.hasSystemChannel],
   action: (member, client) => {
     member.guild.systemChannel.send('Welcome!');  // narrowed
   },
@@ -393,8 +393,8 @@ export const evt = defineGatewayEvent({
 **Channel guards + permission guards:** Special channel guards and `hasChannel` carry `channelResolver` metadata. Pass them to `hasPermissionIn`/`botHasPermissionIn` to check perms in that channel:
 
 ```ts
-guards: [botHasPermissionIn(PermissionFlagsBits.SendMessages, hasSystemChannel)]
-// Auto-resolves to: [inCachedGuild, hasSystemChannel, botHasPermissionIn(SendMessages, hasSystemChannel)]
+guards: [g.botHasPermissionIn(PermissionFlagsBits.SendMessages, g.hasSystemChannel)]
+// Auto-resolves to: [g.inCachedGuild, g.hasSystemChannel, g.botHasPermissionIn(SendMessages, g.hasSystemChannel)]
 ```
 
 ## Error Handling (attempt)

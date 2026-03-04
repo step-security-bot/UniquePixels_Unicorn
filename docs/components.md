@@ -49,7 +49,7 @@ Register a component with a trailing dash (`-`) to match any `customId` that sha
 ```ts
 export const ban = defineComponent({
   id: 'ban-',
-  guards: [inCachedGuild],
+  guards: [g.inCachedGuild],
   action: async (interaction) => {
     // interaction.customId is "ban-123456789012345678"
     const userId = interaction.customId.split('-').pop();
@@ -174,12 +174,12 @@ The first match wins. If no match is found, the interaction receives a generic "
 Components support the same guard system as commands. Guards run before the action and can narrow the interaction type.
 
 ```ts
-import { inCachedGuild, hasPermission } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 import { PermissionFlagsBits } from 'discord.js';
 
 export const kick = defineComponent({
   id: 'kick-',
-  guards: [inCachedGuild, hasPermission(PermissionFlagsBits.KickMembers)],
+  guards: [g.inCachedGuild, g.hasPermission(PermissionFlagsBits.KickMembers)],
   action: async (interaction) => {
     const userId = interaction.customId.split('-').pop();
     await interaction.guild.members.kick(userId);

@@ -40,14 +40,14 @@ Guards run before the action and can narrow the interaction type:
 ```ts
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { defineCommand } from '@/core/sparks';
-import { hasPermission, inCachedGuild } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 
 export const kick = defineCommand({
   command: new SlashCommandBuilder()
     .setName('kick')
     .setDescription('Kick a member')
     .addUserOption(opt => opt.setName('target').setDescription('Member to kick').setRequired(true)),
-  guards: [inCachedGuild, hasPermission(PermissionFlagsBits.KickMembers)],
+  guards: [g.inCachedGuild, g.hasPermission(PermissionFlagsBits.KickMembers)],
   action: async (interaction) => {
     // interaction.guild is guaranteed to exist after inCachedGuild
     const target = interaction.options.getUser('target', true);
@@ -172,7 +172,7 @@ For commands like `/manage list`, `/manage add`, `/manage remove`:
 ```ts
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { defineCommandGroup } from '@/core/sparks';
-import { hasPermission, inCachedGuild } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 
 export const manage = defineCommandGroup({
   command: new SlashCommandBuilder()
@@ -183,7 +183,7 @@ export const manage = defineCommandGroup({
     .addSubcommand(sub => sub.setName('remove').setDescription('Remove an item')),
 
   // Top-level guards run before ANY subcommand
-  guards: [inCachedGuild],
+  guards: [g.inCachedGuild],
 
   subcommands: {
     list: {
@@ -194,13 +194,13 @@ export const manage = defineCommandGroup({
     },
     add: {
       // Per-subcommand guard: only staff can add
-      guards: [hasPermission(PermissionFlagsBits.ManageGuild)],
+      guards: [g.hasPermission(PermissionFlagsBits.ManageGuild)],
       action: async (interaction) => {
         await interaction.reply('Item added!');
       },
     },
     remove: {
-      guards: [hasPermission(PermissionFlagsBits.ManageGuild)],
+      guards: [g.hasPermission(PermissionFlagsBits.ManageGuild)],
       action: async (interaction) => {
         await interaction.reply('Item removed!');
       },
@@ -216,7 +216,7 @@ For deeper nesting like `/settings roles add`, `/settings roles remove`, `/setti
 ```ts
 import { SlashCommandBuilder } from 'discord.js';
 import { defineCommandGroup } from '@/core/sparks';
-import { inCachedGuild } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 
 export const settings = defineCommandGroup({
   command: new SlashCommandBuilder()
@@ -236,7 +236,7 @@ export const settings = defineCommandGroup({
         .addSubcommand(sub => sub.setName('set').setDescription('Set a channel')),
     ),
 
-  guards: [inCachedGuild],
+  guards: [g.inCachedGuild],
 
   groups: {
     roles: {
@@ -268,7 +268,7 @@ export const config = defineCommandGroup({
         .addSubcommand(sub => sub.setName('disable').setDescription('Disable')),
     ),
 
-  guards: [inCachedGuild],
+  guards: [g.inCachedGuild],
 
   // /config view
   subcommands: {
@@ -362,11 +362,11 @@ Each subcommand file exports a plain handler object:
 ```ts
 // src/sparks/manage/subcommands/add.ts
 import type { SubcommandHandler } from '@/core/sparks';
-import { hasPermission } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 import { PermissionFlagsBits } from 'discord.js';
 
 export const add: SubcommandHandler = {
-  guards: [hasPermission(PermissionFlagsBits.ManageGuild)],
+  guards: [g.hasPermission(PermissionFlagsBits.ManageGuild)],
   action: async (interaction) => {
     await interaction.reply('Item added!');
   },
@@ -379,7 +379,7 @@ Then compose them in the command file:
 // src/sparks/manage/command.ts
 import { SlashCommandBuilder } from 'discord.js';
 import { defineCommandGroup } from '@/core/sparks';
-import { inCachedGuild } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 import { add } from './subcommands/add';
 import { list } from './subcommands/list';
 import { remove } from './subcommands/remove';
@@ -391,7 +391,7 @@ export const manage = defineCommandGroup({
     .addSubcommand(sub => sub.setName('list').setDescription('List items'))
     .addSubcommand(sub => sub.setName('add').setDescription('Add an item'))
     .addSubcommand(sub => sub.setName('remove').setDescription('Remove an item')),
-  guards: [inCachedGuild],
+  guards: [g.inCachedGuild],
   subcommands: { list, add, remove },
 });
 ```
@@ -446,13 +446,13 @@ Guards are the primary mechanism for validation and type narrowing. They compose
 
 ```ts
 defineCommandGroup({
-  guards: [inCachedGuild],                    // All subcommands require a guild
+  guards: [g.inCachedGuild],                    // All subcommands require a guild
   subcommands: {
     view: {
       action: viewHandler,                    // No extra guards needed
     },
     delete: {
-      guards: [hasPermission(PermissionFlagsBits.ManageGuild)],  // Extra permission
+      guards: [g.hasPermission(PermissionFlagsBits.ManageGuild)],  // Extra permission
       action: deleteHandler,
     },
   },

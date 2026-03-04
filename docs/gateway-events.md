@@ -78,11 +78,11 @@ Guards work the same way as they do for commands. They run before the action and
 ```ts
 import { Events } from 'discord.js';
 import { defineGatewayEvent } from '@/core/sparks';
-import { messageInGuild, notBot } from '@/guards/built-in';
+import * as g from '@/guards/built-in';
 
 export const messageLog = defineGatewayEvent({
   event: Events.MessageCreate,
-  guards: [notBot, messageInGuild],
+  guards: [g.notBot, g.messageInGuild],
   action: (message, client) => {
     // message is guaranteed to be from a non-bot user in a guild
     client.logger.debug(
