@@ -558,7 +558,7 @@ describe('guard type narrowing', () => {
 			action: (interaction) => {
 				// This would fail tsc if narrowing didn't flow through —
 				// guild would be `Guild | null` without narrowing.
-				void interaction.guild.id;
+				expect(interaction.guild.id).toBeDefined();
 			},
 		});
 
