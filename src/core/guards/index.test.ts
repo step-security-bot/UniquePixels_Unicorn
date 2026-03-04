@@ -1,11 +1,27 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, mock, test } from 'bun:test';
 import {
+	GUARD_META,
+	type Guard,
+	type GuardMeta,
 	createGuard,
+	getGuardMeta,
 	guardFail,
 	guardPass,
+	processGuards,
+	resolveGuards,
 	runGuard,
 	runGuards,
 } from './index';
+import { AppError } from '@/core/lib/logger';
+import type { ExtendedLogger } from '@/core/lib/logger';
+
+/** Shorthand for a pass-through guard with metadata. */
+function namedGuard(name: string, meta?: Partial<GuardMeta>) {
+	return createGuard(
+		(input: unknown) => guardPass(input),
+		{ name, ...meta },
+	);
+}
 
 describe('guardPass', () => {
 	test('creates successful guard result', () => {
@@ -346,5 +362,409 @@ describe('type narrowing scenarios', () => {
 		expect(stringResult.ok).toBe(true);
 		expect(nullResult.ok).toBe(false);
 		expect(undefinedResult.ok).toBe(false);
+	});
+});
+
+// ── Guard Metadata ──────────────────────────────────────────────────
+
+describe('GUARD_META', () => {
+	test('is a unique symbol', () => {
+		expect(typeof GUARD_META).toBe('symbol');
+	});
+});
+
+describe('createGuard with metadata', () => {
+	test('attaches metadata to guard function', () => {
+		const guard = namedGuard('testGuard', {
+			incompatibleWith: ['scheduled-event'],
+		});
+
+		const meta = getGuardMeta(guard);
+
+		expect(meta).toBeDefined();
+		expect(meta!.name).toBe('testGuard');
+		expect(meta!.incompatibleWith).toEqual(['scheduled-event']);
+	});
+
+	test('guard without metadata returns undefined', () => {
+		const guard = createGuard(
+			(input: string) => guardPass(input),
+		);
+
+		expect(getGuardMeta(guard)).toBeUndefined();
+	});
+
+	test('preserves requires in metadata', () => {
+		const dep = namedGuard('dep');
+		const guard = namedGuard('main', { requires: [dep] });
+
+		const meta = getGuardMeta(guard);
+		expect(meta!.requires).toHaveLength(1);
+		expect(meta!.requires![0]).toBe(dep);
+	});
+
+	test('preserves channelResolver in metadata', () => {
+		const resolver = () => null;
+		const guard = namedGuard('withResolver', { channelResolver: resolver });
+
+		const meta = getGuardMeta(guard);
+		expect(meta!.channelResolver).toBe(resolver);
+	});
+});
+
+describe('getGuardMeta', () => {
+	test('returns metadata for guard with meta', () => {
+		const guard = namedGuard('myGuard');
+
+		expect(getGuardMeta(guard)?.name).toBe('myGuard');
+	});
+
+	test('returns undefined for plain function', () => {
+		const plainGuard: Guard<string, string> = (input) => guardPass(input);
+
+		expect(getGuardMeta(plainGuard)).toBeUndefined();
+	});
+});
+
+// ── resolveGuards ───────────────────────────────────────────────────
+
+describe('resolveGuards', () => {
+	test('returns empty array for empty input', () => {
+		expect(resolveGuards([], 'command')).toEqual([]);
+	});
+
+	test('passes through guards without metadata', () => {
+		const g1: Guard<unknown, unknown> = (input) => guardPass(input);
+		const g2: Guard<unknown, unknown> = (input) => guardPass(input);
+
+		const result = resolveGuards([g1, g2], 'command');
+
+		expect(result).toEqual([g1, g2]);
+	});
+
+	test('throws ERR_GUARD_INCOMPATIBLE for incompatible guard', () => {
+		const guard = namedGuard('interactionOnly', {
+			incompatibleWith: ['scheduled-event'],
+		});
+
+		expect(() => resolveGuards([guard], 'scheduled-event')).toThrow(AppError);
+
+		try {
+			resolveGuards([guard], 'scheduled-event');
+		} catch (error) {
+			const appErr = error as AppError;
+			expect(appErr.code).toBe('ERR_GUARD_INCOMPATIBLE');
+			expect(appErr.metadata['guard']).toBe('interactionOnly');
+			expect(appErr.metadata['sparkType']).toBe('scheduled-event');
+		}
+	});
+
+	test('auto-prepends dependencies for command sparks', () => {
+		const dep = namedGuard('dep');
+		const guard = namedGuard('main', { requires: [dep] });
+
+		const result = resolveGuards([guard], 'command');
+
+		expect(result).toEqual([dep, guard]);
+	});
+
+	test('auto-prepends dependencies for component sparks', () => {
+		const dep = namedGuard('dep');
+		const guard = namedGuard('main', { requires: [dep] });
+
+		const result = resolveGuards([guard], 'component');
+
+		expect(result).toEqual([dep, guard]);
+	});
+
+	test('skips dependency resolution for gateway-event', () => {
+		const dep = namedGuard('dep');
+		const guard = namedGuard('main', { requires: [dep] });
+
+		const result = resolveGuards([guard], 'gateway-event');
+
+		// Only the guard itself, dep not auto-prepended
+		expect(result).toEqual([guard]);
+	});
+
+	test('skips dependency resolution for scheduled-event', () => {
+		const guard = namedGuard('noIncompat');
+
+		const result = resolveGuards([guard], 'scheduled-event');
+
+		expect(result).toEqual([guard]);
+	});
+
+	test('deduplicates when dev already includes dependency', () => {
+		const dep = namedGuard('dep');
+		const guard = namedGuard('main', { requires: [dep] });
+
+		// Dev already included dep
+		const result = resolveGuards([dep, guard], 'command');
+
+		expect(result).toEqual([dep, guard]);
+		expect(result).toHaveLength(2);
+	});
+
+	test('corrects mis-ordered deps (dependent listed before its dependency)', () => {
+		const dep = namedGuard('dep');
+		const guard = namedGuard('main', { requires: [dep] });
+
+		// Dev puts guard before dep — resolver should move dep ahead
+		const result = resolveGuards([guard, dep], 'command');
+
+		expect(result).toEqual([dep, guard]);
+	});
+
+	test('preserves developer-specified order with deps before dependents', () => {
+		const dep = namedGuard('dep');
+		const g1 = namedGuard('g1');
+		const g2 = namedGuard('g2', { requires: [dep] });
+
+		// Dev puts g1 before g2; dep should be inserted before g2
+		const result = resolveGuards([g1, g2], 'command');
+
+		expect(result).toEqual([g1, dep, g2]);
+	});
+
+	test('resolves recursive dependencies (A requires B requires C)', () => {
+		const c = namedGuard('C');
+		const b = namedGuard('B', { requires: [c] });
+		const a = namedGuard('A', { requires: [b] });
+
+		const result = resolveGuards([a], 'command');
+
+		expect(result).toEqual([c, b, a]);
+	});
+
+	test('validates transitive dependency compatibility', () => {
+		const incompatDep = namedGuard('incompatDep', {
+			incompatibleWith: ['command'],
+		});
+		const guard = namedGuard('main', { requires: [incompatDep] });
+
+		expect(() => resolveGuards([guard], 'command')).toThrow(AppError);
+
+		try {
+			resolveGuards([guard], 'command');
+		} catch (error) {
+			const appErr = error as AppError;
+			expect(appErr.code).toBe('ERR_GUARD_INCOMPATIBLE');
+			expect(appErr.metadata['guard']).toBe('incompatDep');
+			expect(appErr.metadata['dependencyOf']).toBe('main');
+		}
+	});
+
+	test('allows compatible guards in all valid spark types', () => {
+		const guard = namedGuard('universal');
+
+		expect(resolveGuards([guard], 'command')).toHaveLength(1);
+		expect(resolveGuards([guard], 'component')).toHaveLength(1);
+		expect(resolveGuards([guard], 'gateway-event')).toHaveLength(1);
+		expect(resolveGuards([guard], 'scheduled-event')).toHaveLength(1);
+	});
+
+	test('deduplicates repeated guards for gateway-event', () => {
+		const guard = namedGuard('repeated');
+
+		const result = resolveGuards([guard, guard, guard], 'gateway-event');
+
+		expect(result).toEqual([guard]);
+		expect(result).toHaveLength(1);
+	});
+
+	test('deduplicates repeated guards for scheduled-event', () => {
+		const guard = namedGuard('repeated');
+
+		const result = resolveGuards([guard, guard], 'scheduled-event');
+
+		expect(result).toEqual([guard]);
+		expect(result).toHaveLength(1);
+	});
+
+	test('throws ERR_GUARD_CYCLE on cyclic requires (A -> B -> A)', () => {
+		// Build cycle by attaching metadata with GUARD_META directly (bypasses freeze)
+		const a = (input: unknown) => guardPass(input);
+		const b = (input: unknown) => guardPass(input);
+		(a as unknown as Record<symbol, unknown>)[GUARD_META] = {
+			name: 'A',
+			requires: [b],
+		};
+		(b as unknown as Record<symbol, unknown>)[GUARD_META] = {
+			name: 'B',
+			requires: [a],
+		};
+
+		expect(() => resolveGuards([a], 'command')).toThrow(AppError);
+
+		try {
+			resolveGuards([a], 'command');
+		} catch (error) {
+			const appErr = error as AppError;
+			expect(appErr.code).toBe('ERR_GUARD_CYCLE');
+			expect(appErr.metadata['guard']).toBe('B');
+			expect(appErr.metadata['dependency']).toBe('A');
+		}
+	});
+});
+
+// ── processGuards ───────────────────────────────────────────────────
+
+/** Creates a mock logger with all methods as mocks. */
+function createMockLogger(): ExtendedLogger {
+	return {
+		debug: mock(() => {}),
+		info: mock(() => {}),
+		warn: mock(() => {}),
+		error: mock(() => {}),
+		fatal: mock(() => {}),
+		trace: mock(() => {}),
+		child: mock(() => createMockLogger()),
+		silent: mock(() => {}),
+		level: 'info',
+	} as unknown as ExtendedLogger;
+}
+
+describe('processGuards', () => {
+	test('returns pass-through result on success', async () => {
+		const guard = createGuard(
+			(input: string) => guardPass(input),
+		);
+		const logger = createMockLogger();
+
+		const result = await processGuards([guard], 'hello', logger, 'test:ctx');
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value).toBe('hello');
+		}
+	});
+
+	test('returns failure result on intentional guard fail', async () => {
+		const guard = createGuard(
+			() => guardFail('Denied'),
+		);
+		const logger = createMockLogger();
+
+		const result = await processGuards([guard], 'input', logger, 'test:ctx');
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.reason).toBe('Denied');
+		}
+	});
+
+	test('logs at info level for user-facing guard failures', async () => {
+		const guard = createGuard(
+			() => guardFail('Not allowed'),
+		);
+		const logger = createMockLogger();
+
+		await processGuards([guard], 'input', logger, 'command:ping');
+
+		expect(logger.info).toHaveBeenCalledWith(
+			{ context: 'command:ping', reason: 'Not allowed' },
+			'Guard check failed',
+		);
+	});
+
+	test('logs at warn level for silent guard failures', async () => {
+		const guard = createGuard(
+			() => guardFail('Bot message'),
+		);
+		const logger = createMockLogger();
+
+		await processGuards(
+			[guard],
+			'input',
+			logger,
+			'gateway:messageCreate',
+			{ silent: true },
+		);
+
+		expect(logger.warn).toHaveBeenCalledWith(
+			{ context: 'gateway:messageCreate', reason: 'Bot message' },
+			'Guard check failed',
+		);
+		expect(logger.info).not.toHaveBeenCalled();
+	});
+
+	test('catches guard exceptions and returns failure result', async () => {
+		const throwingGuard = createGuard(
+			() => {
+				throw new Error('guard bug');
+			},
+		);
+		const logger = createMockLogger();
+
+		const result = await processGuards(
+			[throwingGuard],
+			'input',
+			logger,
+			'command:test',
+		);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.reason).toBe('An internal error occurred.');
+		}
+	});
+
+	test('logs at error level with AppError wrapping for guard exceptions', async () => {
+		const throwingGuard = createGuard(
+			() => {
+				throw new Error('guard bug');
+			},
+		);
+		const logger = createMockLogger();
+
+		await processGuards([throwingGuard], 'input', logger, 'command:test');
+
+		expect(logger.error).toHaveBeenCalledWith(
+			expect.objectContaining({ context: 'command:test' }),
+			'Guard exception',
+		);
+
+		// Verify the wrapped error
+		const errorCall = (logger.error as ReturnType<typeof mock>).mock
+			.calls[0]!;
+		const logObj = errorCall[0] as { err: AppError };
+		expect(logObj.err).toBeInstanceOf(AppError);
+		expect(logObj.err.code).toBe('ERR_GUARD_EXCEPTION');
+	});
+
+	test('context string is included in log metadata', async () => {
+		const guard = createGuard(
+			() => guardFail('test reason'),
+		);
+		const logger = createMockLogger();
+
+		await processGuards([guard], 'input', logger, 'component:my-button');
+
+		expect(logger.info).toHaveBeenCalledWith(
+			expect.objectContaining({ context: 'component:my-button' }),
+			'Guard check failed',
+		);
+	});
+
+	test('does not log when all guards pass', async () => {
+		const guard = createGuard(
+			(input: string) => guardPass(input),
+		);
+		const logger = createMockLogger();
+
+		await processGuards([guard], 'hello', logger, 'test:ctx');
+
+		expect(logger.info).not.toHaveBeenCalled();
+		expect(logger.warn).not.toHaveBeenCalled();
+		expect(logger.error).not.toHaveBeenCalled();
+	});
+
+	test('handles empty guard array', async () => {
+		const logger = createMockLogger();
+
+		const result = await processGuards([], 'input', logger, 'test:ctx');
+
+		expect(result.ok).toBe(true);
 	});
 });

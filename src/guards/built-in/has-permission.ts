@@ -1,6 +1,7 @@
 import type { GuildMember, PermissionResolvable } from 'discord.js';
 import { PermissionsBitField } from 'discord.js';
 import { createGuard, type Guard, guardFail, guardPass } from '@/core/guards';
+import { inCachedGuild } from './in-cached-guild';
 
 /**
  * Creates a guard that checks if the user has the specified permissions.
@@ -30,15 +31,22 @@ export function hasPermission<T extends { member: GuildMember }>(
 	const permBits = new PermissionsBitField(permissions);
 	const permNames = permBits.toArray().join(', ');
 
-	return createGuard((input) => {
-		const { member } = input;
+	return createGuard(
+		(input) => {
+			const { member } = input;
 
-		if (!member.permissions.has(permissions)) {
-			return guardFail(
-				message ?? `You need the following permission(s): ${permNames}`,
-			);
-		}
+			if (!member.permissions.has(permissions)) {
+				return guardFail(
+					message ?? `You need the following permission(s): ${permNames}`,
+				);
+			}
 
-		return guardPass(input);
-	});
+			return guardPass(input);
+		},
+		{
+			name: 'hasPermission',
+			requires: [inCachedGuild],
+			incompatibleWith: ['scheduled-event'],
+		},
+	);
 }

@@ -1,3 +1,4 @@
+// coverage-ignore-file — entry-point wiring; all called functions are independently tested
 import { join } from 'node:path';
 import process from 'node:process';
 import { Client, REST, Routes } from 'discord.js';

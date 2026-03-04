@@ -154,7 +154,7 @@ describe('defineGatewayEvent', () => {
 			expect(action).not.toHaveBeenCalled();
 		});
 
-		test('logs debug on guard failure', async () => {
+		test('logs warn on guard failure (silent mode)', async () => {
 			const guard = mock(
 				() =>
 					({ ok: false as const, reason: 'Not in guild' }) as const,
@@ -168,9 +168,12 @@ describe('defineGatewayEvent', () => {
 			const client = createMockClient();
 			await spark.execute([createMockMessage()], client);
 
-			expect(client.logger.debug).toHaveBeenCalledWith(
-				{ event: Events.MessageCreate, reason: 'Not in guild' },
-				'Gateway event guard failed',
+			expect(client.logger.warn).toHaveBeenCalledWith(
+				{
+					context: `gateway:${Events.MessageCreate}`,
+					reason: 'Not in guild',
+				},
+				'Guard check failed',
 			);
 		});
 
@@ -356,9 +359,35 @@ describe('defineGatewayEvent', () => {
 			expect(client.logger.error).toHaveBeenCalled();
 		});
 
-		test('registered handler catches unexpected errors when execute rejects', async () => {
-			// A guard that throws (rather than returning a failure) causes
-			// execute() to reject, hitting the outer catch in the handler.
+		test('logs error when execute itself rejects unexpectedly', async () => {
+			const spark = defineGatewayEvent({
+				event: Events.MessageCreate,
+				action: async () => {},
+			});
+
+			const onMock = mock((..._args: unknown[]) => {});
+			const client = createMockClient({ on: onMock });
+			spark.register(client);
+
+			// Sabotage execute to simulate an unexpected rejection
+			spark.execute = async () => {
+				throw new Error('unexpected kaboom');
+			};
+
+			const handler = onMock.mock.calls[0]?.[1] as (
+				...args: unknown[]
+			) => Promise<void>;
+			await handler({ content: 'hello' });
+
+			expect(client.logger.error).toHaveBeenCalledWith(
+				expect.objectContaining({ event: Events.MessageCreate }),
+				'Gateway event handler failed unexpectedly',
+			);
+		});
+
+		test('guard exception is caught by processGuards and logged', async () => {
+			// A guard that throws is now caught by processGuards inside execute(),
+			// not by the outer handler catch.
 			const throwingGuard = mock(() => {
 				throw new Error('guard exploded');
 			}) as Guard<MessageCreateArg, MessageCreateArg>;
@@ -368,20 +397,21 @@ describe('defineGatewayEvent', () => {
 				action: async () => {},
 			});
 
-			const onMock = mock((..._args: unknown[]) => {});
-			const client = createMockClient({ on: onMock });
-			spark.register(client);
+			const client = createMockClient();
+			const result = await spark.execute([createMockMessage()], client);
 
-			const handler = onMock.mock.calls[0]?.[1] as (
-				...args: unknown[]
-			) => Promise<void>;
+			// processGuards catches the exception and returns failure
+			expect(result.ok).toBe(false);
+			if (!result.ok) {
+				expect(result.reason).toBe('An internal error occurred.');
+			}
 
-			// Should not throw — error is caught by the registered handler
-			await handler({ content: 'hello' });
-
+			// Error is logged by processGuards
 			expect(client.logger.error).toHaveBeenCalledWith(
-				expect.objectContaining({ event: Events.MessageCreate }),
-				'Gateway event handler failed unexpectedly',
+				expect.objectContaining({
+					context: `gateway:${Events.MessageCreate}`,
+				}),
+				'Guard exception',
 			);
 		});
 	});

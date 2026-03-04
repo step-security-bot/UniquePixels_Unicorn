@@ -12,7 +12,7 @@ Unicorn provides a structured, type-safe approach to building Discord bots using
 - **Scheduled events** -- cron-based tasks with timezone support
 - **Component pattern matching** -- exact, prefix, wildcard, and regex matching for button/select/modal handlers
 - **Health check server** -- liveness and readiness probes for container orchestration
-- **Structured logging** -- Pino with Sentry integration in production
+- **Structured logging** -- Pino with optional [Sentry](https://sentry.io/) integration via a `--preload` script
 - **Graceful shutdown** -- coordinated cleanup of jobs, servers, and the Discord client
 
 ## Requirements
@@ -39,12 +39,11 @@ bun start
 src/
 ├── index.ts                    # Entry point and startup sequence
 ├── config.ts                   # Application configuration
-├── sentry.ts                   # Sentry initialization (preloaded)
 ├── core/
 │   ├── client/                 # Client augmentation and initialization
 │   ├── configuration/          # Zod schemas, parseConfig(), type-safe IDs
 │   ├── guards/                 # Guard infrastructure (runGuards, createGuard)
-│   ├── logger/                 # Pino logger with Sentry transport
+│   ├── logger/                 # Pino logger, Sentry-ready integration
 │   ├── sparks/                 # Spark definitions and loader
 │   └── lib/                    # Shared utilities (attempt)
 ├── guards/
@@ -139,12 +138,13 @@ See [docs/guards.md](docs/guards.md) for the full guard reference.
 ## Scripts
 
 ```bash
-bun start          # Run with Sentry preload
-bun lint           # Format + check + typecheck
-bun lint:format    # Biome format
-bun lint:code      # Biome check
-bun lint:tsc       # TypeScript typecheck
-bun test           # Run tests
+bun start          # Run the bot
+bun qa             # Full quality gate: format + lint + typecheck + test
+bun qa:format      # Biome autoformat
+bun qa:lint        # Biome lint check
+bun qa:tsc         # TypeScript typecheck
+bun qa:test        # Run tests + patch lcov
+bun test           # Run tests only
 ```
 
 ## Documentation

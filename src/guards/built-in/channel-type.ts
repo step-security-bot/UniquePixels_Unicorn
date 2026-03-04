@@ -33,11 +33,14 @@ export function channelType<T extends Interaction, C extends ChannelType>(
 	const typeSet = new Set(types);
 	const typeNames = types.map((t) => ChannelType[t]).join(', ');
 
-	return createGuard((input) => {
-		if (!(input.channel && typeSet.has(input.channel.type as C))) {
-			return guardFail(`This command can only be used in: ${typeNames}`);
-		}
+	return createGuard(
+		(input) => {
+			if (!(input.channel && typeSet.has(input.channel.type as C))) {
+				return guardFail(`This command can only be used in: ${typeNames}`);
+			}
 
-		return guardPass(input as ChannelTypedInteraction<T, C>);
-	});
+			return guardPass(input as ChannelTypedInteraction<T, C>);
+		},
+		{ name: 'channelType', incompatibleWith: ['scheduled-event'] },
+	);
 }

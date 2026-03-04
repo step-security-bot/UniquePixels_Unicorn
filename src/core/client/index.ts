@@ -27,10 +27,12 @@ export function isInitializedClient(client: Client): boolean {
 
 	// Validate collection and array types
 	if (
-		!(client.commands instanceof Collection) ||
-		!(client.components instanceof Collection) ||
-		!(client.scheduledJobs instanceof Collection) ||
-		!Array.isArray(client.componentPatterns)
+		!(
+			client.commands instanceof Collection &&
+			client.components instanceof Collection &&
+			client.scheduledJobs instanceof Collection &&
+			Array.isArray(client.componentPatterns)
+		)
 	) {
 		return false;
 	}

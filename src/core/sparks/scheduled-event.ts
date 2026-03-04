@@ -1,7 +1,7 @@
 import { CronJob } from 'cron';
 import type { Client } from 'discord.js';
 import type { Guard, GuardResult } from '@/core/guards';
-import { runGuards } from '@/core/guards';
+import { processGuards, resolveGuards } from '@/core/guards';
 import { attempt, isError } from '@/core/lib/attempt';
 
 /**
@@ -40,7 +40,8 @@ export interface ScheduledEventOptions {
 	 */
 	timezone?: string;
 	/** Guards to run before the action (optional) */
-	guards?: readonly Guard<ScheduledContext, ScheduledContext>[];
+	// biome-ignore lint/suspicious/noExplicitAny: Guard chains have heterogeneous input/output types; type safety is enforced by runGuards at runtime
+	guards?: readonly Guard<any, any>[];
 	/** The action to run on each scheduled tick */
 	action: ScheduledAction;
 }
@@ -53,7 +54,8 @@ export interface ScheduledEventSpark {
 	readonly id: string;
 	readonly schedule: string | string[];
 	readonly timezone: string;
-	readonly guards: readonly Guard<ScheduledContext, ScheduledContext>[];
+	// biome-ignore lint/suspicious/noExplicitAny: Guard chains have heterogeneous input/output types; type safety is enforced by runGuards at runtime
+	readonly guards: readonly Guard<any, any>[];
 	readonly action: ScheduledAction;
 
 	/** Execute the scheduled action (runs guards then action) */
@@ -95,7 +97,8 @@ export interface ScheduledEventSpark {
 export function defineScheduledEvent(
 	options: ScheduledEventOptions,
 ): ScheduledEventSpark {
-	const { id, schedule, timezone = 'UTC', guards = [], action } = options;
+	const { id, schedule, timezone = 'UTC', action } = options;
+	const guards = resolveGuards(options.guards ?? [], 'scheduled-event');
 
 	return {
 		type: 'scheduled-event',
@@ -108,17 +111,16 @@ export function defineScheduledEvent(
 		async execute(
 			ctx: ScheduledContext,
 		): Promise<GuardResult<ScheduledContext>> {
-			// Run guards
-			const guardResult = await runGuards(
-				guards as readonly Guard<unknown, unknown>[],
+			// Run guards with centralized error handling
+			const guardResult = await processGuards(
+				guards,
 				ctx,
+				ctx.client.logger,
+				`scheduled:${id}`,
+				{ silent: true },
 			);
 
 			if (!guardResult.ok) {
-				ctx.client.logger.debug(
-					{ scheduled: id, reason: guardResult.reason },
-					'Scheduled event guard failed',
-				);
 				return guardResult as GuardResult<ScheduledContext>;
 			}
 

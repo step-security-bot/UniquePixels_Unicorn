@@ -8,9 +8,15 @@ import { createGuard, type Guard, guardFail, guardPass } from '@/core/guards';
 export const messageInGuild: Guard<Message, Message<true>> = createGuard<
 	Message,
 	Message<true>
->((message) => {
-	if (!message.inGuild()) {
-		return guardFail('This can only be used in a server.');
-	}
-	return guardPass(message);
-});
+>(
+	(message) => {
+		if (!message.inGuild()) {
+			return guardFail('This can only be used in a server.');
+		}
+		return guardPass(message);
+	},
+	{
+		name: 'messageInGuild',
+		incompatibleWith: ['command', 'component', 'scheduled-event'],
+	},
+);

@@ -36,9 +36,12 @@ export type GuildInteraction<T extends Interaction = Interaction> = T & {
 export const inCachedGuild: Guard<Interaction, GuildInteraction> = createGuard<
 	Interaction,
 	GuildInteraction
->((interaction) => {
-	if (!interaction.inCachedGuild()) {
-		return guardFail('This command can only be used in a server.');
-	}
-	return guardPass(interaction as GuildInteraction);
-});
+>(
+	(interaction) => {
+		if (!interaction.inCachedGuild()) {
+			return guardFail('This can only be used in a server.');
+		}
+		return guardPass(interaction as GuildInteraction);
+	},
+	{ name: 'inCachedGuild', incompatibleWith: ['scheduled-event'] },
+);

@@ -23,14 +23,14 @@ Unicorn is a Discord bot framework built on Discord.js and TypeScript, designed 
 ## Scripts
 
 ```bash
-bun start          # Run with Sentry preload
+bun start          # Run the bot
 bun qa             # Full quality gate: format + lint + typecheck + test
 bun qa:format      # Biome autoformat
 bun qa:lint        # Biome lint check
 bun qa:lint-ci     # Biome lint with GitHub Actions reporter
 bun qa:tsc         # TypeScript typecheck
 bun qa:test        # Run tests + patch lcov with untested files
-bun test           # Run tests only (90% coverage threshold)
+bun test           # Run tests only (100% coverage threshold)
 ```
 
 ## File Structure
@@ -39,7 +39,6 @@ bun test           # Run tests only (90% coverage threshold)
 src/
 ├── index.ts                    # Main entry, startup sequence
 ├── config.ts                   # App config (satisfies UnicornConfig)
-├── sentry.ts                   # Sentry init (preloaded via --preload)
 ├── health-check.ts             # Liveness/readiness probes (Bun.serve)
 ├── shutdown.ts                 # Graceful shutdown handler
 ├── core/
@@ -100,7 +99,7 @@ Six spark types share: `type`, `guards[]`, `action()`, `execute()`, `register(cl
 
 Composable validators with signature `(input) => GuardResult`. Return `{ ok: true, value }` or `{ ok: false, reason }`. Chain sequentially with type narrowing. Guards do not receive a `client` parameter — access client via `input.client` when input is an interaction.
 
-12 built-in guards (import from `@/guards/built-in`) — see `spark-reference.md` for the full list with types and usage.
+15 built-in guards (import from `@/guards/built-in`) — see `spark-reference.md` for the full list with types and usage.
 
 ### Component Lookup
 
@@ -133,7 +132,7 @@ Biome with strict rules: **kebab-case** filenames, **no `console`** (use `client
 
 ## Testing
 
-Use Bun's test runner. Coverage threshold: 90%.
+Use Bun's test runner. Coverage threshold: 100%.
 
 **Test helpers** (`@/core/lib/test-helpers`): `createMockClient()`, `createMockChatInputInteraction()`, `createMockAutocompleteInteraction()`, `createMockComponentInteraction()`, `createMockBaseInteraction()`, `createMockMessage()`, `createMockReadyClient()`, `passThroughGuard()`, `failGuard()`. Mock interactions include a `.client` property by default. `createMockClient()` returns `Client` (augmented via module augmentation).
 

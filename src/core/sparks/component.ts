@@ -9,7 +9,7 @@ import type {
 	UserSelectMenuInteraction,
 } from 'discord.js';
 import type { Guard, GuardResult } from '@/core/guards';
-import { runGuards } from '@/core/guards';
+import { processGuards, resolveGuards } from '@/core/guards';
 import { attempt, isError } from '@/core/lib/attempt';
 import type { ExtendedLogger } from '@/core/lib/logger';
 
@@ -63,7 +63,8 @@ export interface ComponentOptions<
 	 */
 	id: CustomIdPattern;
 	/** Guards to run before the action (optional) */
-	guards?: readonly Guard<TInput, TGuarded>[];
+	// biome-ignore lint/suspicious/noExplicitAny: Guard chains have heterogeneous input/output types; type safety is enforced by runGuards at runtime
+	guards?: readonly Guard<any, any>[];
 	/** The action to run when the component is interacted with */
 	action: ComponentAction<TGuarded>;
 }
@@ -97,7 +98,8 @@ export interface ComponentSpark<
 	readonly type: 'component';
 	readonly id: CustomIdPattern;
 	readonly key: string;
-	readonly guards: readonly Guard<TInput, TGuarded>[];
+	// biome-ignore lint/suspicious/noExplicitAny: Guard chains have heterogeneous input/output types; type safety is enforced by runGuards at runtime
+	readonly guards: readonly Guard<any, any>[];
 	readonly action: ComponentAction<TGuarded>;
 
 	/** Check if this spark handles the given custom ID */
@@ -263,7 +265,8 @@ export function defineComponent<
 >(
 	options: ComponentOptions<TInput, TGuarded>,
 ): ComponentSpark<TInput, TGuarded> {
-	const { id, guards = [], action } = options;
+	const { id, action } = options;
+	const guards = resolveGuards(options.guards ?? [], 'component');
 	const key = id instanceof RegExp ? id.source : id;
 
 	const spark: ComponentSpark<TInput, TGuarded> = {
@@ -280,17 +283,15 @@ export function defineComponent<
 		async execute(interaction: TInput): Promise<GuardResult<TGuarded>> {
 			const client = interaction.client;
 
-			// Run guards
-			const guardResult = await runGuards(
-				guards as readonly Guard<unknown, unknown>[],
+			// Run guards with centralized error handling
+			const guardResult = await processGuards(
+				guards,
 				interaction,
+				client.logger,
+				`component:${key}`,
 			);
 
 			if (!guardResult.ok) {
-				client.logger.debug(
-					{ component: key, reason: guardResult.reason },
-					'Component guard failed',
-				);
 				return guardResult as GuardResult<TGuarded>;
 			}
 

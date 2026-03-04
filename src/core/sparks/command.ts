@@ -8,7 +8,7 @@ import type {
 	SlashCommandSubcommandsOnlyBuilder,
 } from 'discord.js';
 import type { Guard, GuardResult } from '@/core/guards';
-import { runGuards } from '@/core/guards';
+import { processGuards, resolveGuards } from '@/core/guards';
 import { attempt, isError } from '@/core/lib/attempt';
 
 /**
@@ -144,7 +144,8 @@ export interface CommandSpark<
 export function defineCommand<
 	TGuarded extends CommandInteraction = ChatInputCommandInteraction,
 >(options: CommandOptions<TGuarded>): CommandSpark<TGuarded> {
-	const { command, guards = [], action } = options;
+	const { command, action } = options;
+	const guards = resolveGuards(options.guards ?? [], 'command');
 
 	const spark: CommandSpark<TGuarded> = {
 		type: 'command',
@@ -173,17 +174,15 @@ export function defineCommand<
 				return { ok: false, reason: 'Interaction type mismatch.' };
 			}
 
-			// Run guards
-			const guardResult = await runGuards(
-				guards as readonly Guard<unknown, unknown>[],
+			// Run guards with centralized error handling
+			const guardResult = await processGuards(
+				guards,
 				interaction,
+				client.logger,
+				`command:${command.name}`,
 			);
 
 			if (!guardResult.ok) {
-				client.logger.debug(
-					{ command: command.name, reason: guardResult.reason },
-					'Command guard failed',
-				);
 				return guardResult as GuardResult<TGuarded>;
 			}
 

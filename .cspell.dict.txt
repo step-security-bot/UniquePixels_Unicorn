@@ -26,6 +26,8 @@ readyz # K8s readiness endpoint
 # Programming terms
 contravariance
 docstrings
+incompat
+dedup
 
 # Abbreviations
 sched # scheduled

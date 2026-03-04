@@ -1,3 +1,4 @@
+// coverage-ignore-file — static config wiring; shape validated by `satisfies UnicornConfig`
 import { ActivityType, GatewayIntentBits, Partials } from 'discord.js';
 import type { UnicornConfig } from '@/core/configuration';
 

@@ -142,35 +142,38 @@ export function rateLimit<T extends Interaction>(options: {
 	const { limit, window, message } = options;
 	const keyFn = options.keyFn ?? defaultRateLimitKeyFn;
 
-	return createGuard((input) => {
-		const key = keyFn(input);
-		const now = Date.now();
-		const entry = rateLimitStore.get(key);
+	return createGuard(
+		(input) => {
+			const key = keyFn(input);
+			const now = Date.now();
+			const entry = rateLimitStore.get(key);
 
-		if (!entry || now >= entry.resetAt) {
-			// New entry or expired - create fresh entry
-			const newEntry = { count: 1, resetAt: now + window };
-			rateLimitStore.set(key, newEntry);
+			if (!entry || now >= entry.resetAt) {
+				// New entry or expired - create fresh entry
+				const newEntry = { count: 1, resetAt: now + window };
+				rateLimitStore.set(key, newEntry);
 
-			// Evict LRU entries if we've exceeded capacity
-			evictLRUEntries();
+				// Evict LRU entries if we've exceeded capacity
+				evictLRUEntries();
+
+				return guardPass(input);
+			}
+
+			if (entry.count >= limit) {
+				const remainingSeconds = Math.ceil((entry.resetAt - now) / 1000);
+				return guardFail(
+					message ?? `Rate limited. Try again in ${remainingSeconds} seconds.`,
+				);
+			}
+
+			// Increment and move to end of map (mark as recently used)
+			entry.count++;
+			touchEntry(key, entry);
 
 			return guardPass(input);
-		}
-
-		if (entry.count >= limit) {
-			const remainingSeconds = Math.ceil((entry.resetAt - now) / 1000);
-			return guardFail(
-				message ?? `Rate limited. Try again in ${remainingSeconds} seconds.`,
-			);
-		}
-
-		// Increment and move to end of map (mark as recently used)
-		entry.count++;
-		touchEntry(key, entry);
-
-		return guardPass(input);
-	});
+		},
+		{ name: 'rateLimit', incompatibleWith: ['scheduled-event'] },
+	);
 }
 
 /**

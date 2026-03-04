@@ -24,13 +24,16 @@ export function isUser<T extends Interaction>(
 ): Guard<T, T> {
 	const userIdSet = new Set(userIds);
 
-	return createGuard((input) => {
-		if (!userIdSet.has(input.user.id)) {
-			return guardFail(
-				message ?? 'You do not have permission to use this command.',
-			);
-		}
+	return createGuard(
+		(input) => {
+			if (!userIdSet.has(input.user.id)) {
+				return guardFail(
+					message ?? 'You do not have permission to use this command.',
+				);
+			}
 
-		return guardPass(input);
-	});
+			return guardPass(input);
+		},
+		{ name: 'isUser', incompatibleWith: ['scheduled-event'] },
+	);
 }

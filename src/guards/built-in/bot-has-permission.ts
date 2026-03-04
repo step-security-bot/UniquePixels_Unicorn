@@ -1,14 +1,13 @@
-import type {
-	Guild,
-	GuildBasedChannel,
-	PermissionResolvable,
-} from 'discord.js';
+import type { Guild, PermissionResolvable } from 'discord.js';
 import { PermissionsBitField } from 'discord.js';
 import { createGuard, type Guard, guardFail, guardPass } from '@/core/guards';
+import { inCachedGuild } from './in-cached-guild';
 
 /**
- * Creates a guard that checks if the bot has the specified permissions in the channel.
- * Must be used after inCachedGuild to ensure guild and channel are available.
+ * Creates a guard that checks if the bot has the specified permissions at the guild level.
+ * Must be used after inCachedGuild to ensure guild is available.
+ *
+ * For channel-level permission checks, use `botHasPermissionIn` instead.
  *
  * @param permissions - Permission(s) to check for
  * @param message - Optional custom error message
@@ -16,39 +15,42 @@ import { createGuard, type Guard, guardFail, guardPass } from '@/core/guards';
  * @example
  * ```ts
  * import { PermissionFlagsBits } from 'discord.js';
- * import { defineCommand } from '@/core/sparks/command';
- * import { inCachedGuild } from '@/guards/built-in/in-cached-guild';
  *
- * export const embedCommand = defineCommand({
+ * export const modCommand = defineCommand({
  *   command: builder,
- *   guards: [inCachedGuild, botHasPermission(PermissionFlagsBits.EmbedLinks)],
+ *   guards: [botHasPermission(PermissionFlagsBits.ManageRoles)],
  *   action: async (interaction) => { // ...
  *   },
  * });
  * ```
  */
-export function botHasPermission<
-	T extends { guild: Guild; channel: GuildBasedChannel },
->(permissions: PermissionResolvable, message?: string): Guard<T, T> {
+export function botHasPermission<T extends { guild: Guild }>(
+	permissions: PermissionResolvable,
+	message?: string,
+): Guard<T, T> {
 	const permBits = new PermissionsBitField(permissions);
 	const permNames = permBits.toArray().join(', ');
 
-	return createGuard((input) => {
-		const { guild, channel } = input;
-		const botMember = guild.members.me;
+	return createGuard(
+		(input) => {
+			const botMember = input.guild.members.me;
 
-		if (!botMember) {
-			return guardFail('Unable to verify bot permissions.');
-		}
+			if (!botMember) {
+				return guardFail('Unable to verify bot permissions.');
+			}
 
-		const channelPerms = botMember.permissionsIn(channel);
+			if (!botMember.permissions.has(permissions)) {
+				return guardFail(
+					message ?? `I need the following permission(s): ${permNames}`,
+				);
+			}
 
-		if (!channelPerms.has(permissions)) {
-			return guardFail(
-				message ?? `I need the following permission(s): ${permNames}`,
-			);
-		}
-
-		return guardPass(input);
-	});
+			return guardPass(input);
+		},
+		{
+			name: 'botHasPermission',
+			requires: [inCachedGuild],
+			incompatibleWith: ['scheduled-event'],
+		},
+	);
 }

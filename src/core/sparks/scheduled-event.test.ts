@@ -208,7 +208,7 @@ describe('defineScheduledEvent', () => {
 			expect(action).not.toHaveBeenCalled();
 		});
 
-		test('logs debug on guard failure', async () => {
+		test('logs warn on guard failure (silent mode)', async () => {
 			const guard = mock(() => ({
 				ok: false as const,
 				reason: 'Maintenance mode',
@@ -224,9 +224,9 @@ describe('defineScheduledEvent', () => {
 			const ctx = createMockContext(client);
 			await spark.execute(ctx);
 
-			expect(client.logger.debug).toHaveBeenCalledWith(
-				{ scheduled: 'cleanup', reason: 'Maintenance mode' },
-				'Scheduled event guard failed',
+			expect(client.logger.warn).toHaveBeenCalledWith(
+				{ context: 'scheduled:cleanup', reason: 'Maintenance mode' },
+				'Guard check failed',
 			);
 		});
 
@@ -307,7 +307,33 @@ describe('defineScheduledEvent', () => {
 			);
 		});
 
-		test('onTick callback catches unexpected errors from execute', async () => {
+		test('onTick callback logs error when execute rejects unexpectedly', async () => {
+			const cron = spyCronFrom();
+
+			const spark = defineScheduledEvent({
+				id: 'kaboom-test',
+				schedule: '* * * * * *',
+				action: async () => {},
+			});
+
+			const client = createMockClient();
+			spark.register(client);
+
+			// Sabotage execute to simulate an unexpected rejection
+			spark.execute = async () => {
+				throw new Error('unexpected kaboom');
+			};
+
+			await cron.getOnTick()!();
+			spark.stop(client);
+
+			expect(client.logger.error).toHaveBeenCalledWith(
+				expect.objectContaining({ scheduled: 'kaboom-test' }),
+				'Scheduled event handler failed unexpectedly',
+			);
+		});
+
+		test('onTick callback handles guard exception via processGuards', async () => {
 			const cron = spyCronFrom();
 
 			const throwingGuard = mock(() => {
@@ -328,9 +354,12 @@ describe('defineScheduledEvent', () => {
 
 			spark.stop(client);
 
+			// processGuards catches the guard exception and logs it
 			expect(client.logger.error).toHaveBeenCalledWith(
-				expect.objectContaining({ scheduled: 'err-test' }),
-				'Scheduled event handler failed unexpectedly',
+				expect.objectContaining({
+					context: 'scheduled:err-test',
+				}),
+				'Guard exception',
 			);
 		});
 

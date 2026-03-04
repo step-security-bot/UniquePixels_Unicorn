@@ -5,7 +5,7 @@ import type {
 	CommandInteraction,
 } from 'discord.js';
 import type { Guard, GuardResult } from '@/core/guards';
-import { runGuards } from '@/core/guards';
+import { processGuards, resolveGuards } from '@/core/guards';
 import { attempt, isError } from '@/core/lib/attempt';
 import { AppError } from '@/core/lib/logger';
 import type {
@@ -129,7 +129,8 @@ function findSubcommandHandler<TGuarded extends ChatInputCommandInteraction>(
 export function defineCommandGroup<
 	TGuarded extends ChatInputCommandInteraction = ChatInputCommandInteraction,
 >(options: CommandGroupOptions<TGuarded>): CommandSpark<TGuarded> {
-	const { command, guards = [], subcommands = {}, groups = {} } = options;
+	const { command, subcommands = {}, groups = {} } = options;
+	const guards = resolveGuards(options.guards ?? [], 'command');
 
 	// Validate that at least one subcommand or group is defined
 	const hasSubcommands = Object.keys(subcommands).length > 0;
@@ -164,16 +165,15 @@ export function defineCommandGroup<
 		let finalNarrowed = narrowed;
 
 		if (handler.guards && handler.guards.length > 0) {
-			const subGuardResult = await runGuards(
-				handler.guards as readonly Guard<unknown, unknown>[],
+			const resolvedSubGuards = resolveGuards(handler.guards, 'command');
+			const subGuardResult = await processGuards(
+				resolvedSubGuards,
 				narrowed,
+				client.logger,
+				`command:${routeKey}`,
 			);
 
 			if (!subGuardResult.ok) {
-				client.logger.debug(
-					{ command: routeKey, reason: subGuardResult.reason },
-					'Subcommand guard failed',
-				);
 				return subGuardResult as GuardResult<TGuarded>;
 			}
 
@@ -192,6 +192,7 @@ export function defineCommandGroup<
 		return { ok: true, value: finalNarrowed };
 	}
 
+	/** Resolves the target subcommand and runs its autocomplete handler. */
 	async function resolveAndRunAutocomplete(
 		interaction: AutocompleteInteraction,
 	): Promise<void> {
@@ -255,17 +256,15 @@ export function defineCommandGroup<
 				} as GuardResult<TGuarded>;
 			}
 
-			// 1. Run top-level guards
-			const guardResult = await runGuards(
-				guards as readonly Guard<unknown, unknown>[],
+			// 1. Run top-level guards with centralized error handling
+			const guardResult = await processGuards(
+				guards,
 				interaction,
+				client.logger,
+				`command:${command.name}`,
 			);
 
 			if (!guardResult.ok) {
-				client.logger.debug(
-					{ command: command.name, reason: guardResult.reason },
-					'Command group guard failed',
-				);
 				return guardResult as GuardResult<TGuarded>;
 			}
 

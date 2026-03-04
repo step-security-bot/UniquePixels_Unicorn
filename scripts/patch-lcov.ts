@@ -3,7 +3,10 @@
  * not covered by any test. This ensures Codecov reports on ALL source
  * files, not just those imported during tests.
  *
- * Files containing a `coverage-ignore-file` comment are skipped.
+ * Exclusion patterns are read from bunfig.toml `coveragePathIgnorePatterns`
+ * (single source of truth), plus built-in excludes for test and declaration files.
+ *
+ * Files containing a `coverage-ignore-file` comment are also skipped.
  */
 
 import process from 'node:process';
@@ -12,12 +15,51 @@ const LCOV_PATH = 'coverage/lcov.info';
 const SOURCE_GLOB = 'src/**/*.ts';
 const IGNORE_DIRECTIVE = 'coverage-ignore-file';
 
-const EXCLUDE_PATTERNS = [
-	/\.test\.ts$/,
-	/\.d\.ts$/,
-	/__test_sparks__\//,
-	/test-helpers\//,
-];
+/** Built-in excludes that always apply (test files, declaration files). */
+const BUILTIN_EXCLUDES = [/\.test\.ts$/, /\.d\.ts$/];
+
+/** Converts a glob pattern to a RegExp for path matching. */
+function globToRegex(pattern: string): RegExp {
+	const escaped = pattern
+		.replaceAll(/[.+^${}()|[\]\\]/g, String.raw`\$&`)
+		.replaceAll('**', '{{GLOBSTAR}}')
+		.replaceAll('*', '[^/]*')
+		.replaceAll('{{GLOBSTAR}}', '.*');
+	return new RegExp(escaped);
+}
+
+/** Reads coveragePathIgnorePatterns from bunfig.toml. */
+async function loadIgnorePatterns(): Promise<RegExp[]> {
+	const bunfigFile = Bun.file('bunfig.toml');
+	if (!(await bunfigFile.exists())) {
+		return [];
+	}
+
+	const raw = await bunfigFile.text();
+	const config = Bun.TOML.parse(raw) as Record<string, unknown>;
+	const test = (config['test'] ?? {}) as Record<string, unknown>;
+	const rawPatterns = test['coveragePathIgnorePatterns'];
+
+	if (rawPatterns === undefined) {
+		return [];
+	}
+
+	if (
+		!(
+			Array.isArray(rawPatterns) &&
+			rawPatterns.every((item): item is string => typeof item === 'string')
+		)
+	) {
+		throw new Error(
+			'bunfig.toml: test.coveragePathIgnorePatterns must be an array of strings',
+		);
+	}
+
+	return rawPatterns.map(globToRegex);
+}
+
+const configPatterns = await loadIgnorePatterns();
+const EXCLUDE_PATTERNS = [...BUILTIN_EXCLUDES, ...configPatterns];
 
 const lcovFile = Bun.file(LCOV_PATH);
 

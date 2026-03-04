@@ -10,6 +10,9 @@ import { describe, test, expect, mock, spyOn, beforeEach, afterEach } from 'bun:
 import { createMockClient, createMockChatInputInteraction, createMockAutocompleteInteraction, createMockComponentInteraction, createMockBaseInteraction, createMockMessage, createMockReadyClient, passThroughGuard, failGuard } from '@/core/lib/test-helpers';
 // Spark definitions (for direct instantiation in tests)
 import { defineCommand, defineCommandWithAutocomplete, defineCommandGroup, defineComponent, defineGatewayEvent, defineScheduledEvent } from '@/core/sparks';
+// Guard infrastructure (for guard tests)
+import { createGuard, guardPass, guardFail, getGuardMeta, resolveGuards, processGuards, GUARD_META } from '@/core/guards';
+import type { Guard, GuardMeta, SparkType } from '@/core/guards';
 // Types as needed
 import type { Client } from 'discord.js';
 ```
@@ -260,24 +263,106 @@ test('logs error when action throws', async () => {
 });
 ```
 
-### Pattern: Logging assertions
+### Pattern: Logging assertions (processGuards)
 
 ```ts
 // Access logger via interaction.client for command/component sparks
 const { logger } = interaction.client;
 
-// Guard failure (debug)
-expect(logger.debug).toHaveBeenCalledWith(
-  { command: 'name', reason: 'msg' }, 'Command guard failed',
+// Guard failure — command/component (info level)
+expect(logger.info).toHaveBeenCalledWith(
+  { context: 'command:name', reason: 'msg' }, 'Guard check failed',
 );
-// Action failure (error)
+
+// Guard failure — gateway/scheduled (warn level, silent mode)
+expect(logger.warn).toHaveBeenCalledWith(
+  { context: 'gateway:messageCreate', reason: 'msg' }, 'Guard check failed',
+);
+
+// Guard exception (error level, all spark types)
+expect(logger.error).toHaveBeenCalledWith(
+  expect.objectContaining({ context: 'command:name' }), 'Guard exception',
+);
+
+// Action failure (error — unchanged)
 expect(logger.error).toHaveBeenCalledWith(
   expect.objectContaining({ command: 'name' }), 'Command action failed',
 );
-// Autocomplete failure (warn)
+
+// Autocomplete failure (warn — unchanged)
 expect(logger.warn).toHaveBeenCalledWith(
   expect.objectContaining({ command: 'name' }), 'Autocomplete handler failed',
 );
+```
+
+### Pattern: Guard metadata test
+
+```ts
+import { getGuardMeta, createGuard, guardPass } from '@/core/guards';
+
+test('has correct metadata', () => {
+  const meta = getGuardMeta(myGuard);
+  expect(meta).toBeDefined();
+  expect(meta!.name).toBe('myGuard');
+  expect(meta!.incompatibleWith).toContain('scheduled-event');
+  expect(meta!.requires).toHaveLength(1); // e.g. [inCachedGuild]
+});
+
+test('has channelResolver in metadata', () => {
+  const meta = getGuardMeta(myChannelGuard);
+  expect(meta!.channelResolver).toBeTypeOf('function');
+  const resolved = meta!.channelResolver!(mockInput);
+  expect(resolved === expectedChannel).toBe(true);
+});
+```
+
+### Pattern: resolveGuards test
+
+```ts
+import { resolveGuards, createGuard, guardPass, getGuardMeta } from '@/core/guards';
+import { AppError } from '@/core/lib/logger';
+
+test('throws for incompatible guard', () => {
+  const guard = createGuard((input: unknown) => guardPass(input), {
+    name: 'test',
+    incompatibleWith: ['scheduled-event'],
+  });
+  expect(() => resolveGuards([guard], 'scheduled-event')).toThrow(AppError);
+});
+
+test('auto-prepends deps for command sparks', () => {
+  const dep = createGuard((input: unknown) => guardPass(input), { name: 'dep' });
+  const guard = createGuard((input: unknown) => guardPass(input), {
+    name: 'main',
+    requires: [dep],
+  });
+  const resolved = resolveGuards([guard], 'command');
+  expect(resolved).toEqual([dep, guard]);
+});
+```
+
+### Pattern: processGuards test
+
+```ts
+import { processGuards, createGuard, guardPass, guardFail } from '@/core/guards';
+import { createMockClient } from '@/core/lib/test-helpers';
+import { AppError } from '@/core/lib/logger';
+
+test('returns success when all guards pass', async () => {
+  const client = createMockClient();
+  const guard = createGuard((input: unknown) => guardPass(input));
+  const result = await processGuards([guard], { value: 1 }, client.logger, 'test:ctx');
+  expect(result.ok).toBe(true);
+});
+
+test('catches exceptions and returns failure', async () => {
+  const client = createMockClient();
+  const guard = createGuard(() => { throw new Error('bug'); });
+  const result = await processGuards([guard], {}, client.logger, 'test:ctx');
+  expect(result.ok).toBe(false);
+  if (!result.ok) expect(result.reason).toBe('An internal error occurred.');
+  expect(client.logger.error).toHaveBeenCalled();
+});
 ```
 
 ### Pattern: Guard result assertion

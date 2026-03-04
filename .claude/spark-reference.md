@@ -7,22 +7,22 @@ Machine-readable reference for composing Unicorn sparks. Not for humans.
 ```ts
 // Spark definitions
 import { defineCommand, defineCommandWithAutocomplete, defineCommandGroup, defineComponent, defineGatewayEvent, defineScheduledEvent } from '@/core/sparks';
-// Types
-import type { CommandSpark, CommandAction, CommandBuilder, BaseCommandSpark, CommandOptions, CommandWithAutocompleteOptions, CommandGroupOptions, SubcommandHandler, ComponentSpark, AnyComponentInteraction, ComponentInteraction, SelectMenuInteraction, CustomIdPattern, GatewayEventSpark, GatewayEventAction, ReadyClient, ScheduledEventSpark, ScheduledContext, ScheduledAction, AnySpark, SparkType } from '@/core/sparks';
+// Key types (CommandBuilder = SlashCommandBuilder | ContextMenuCommandBuilder | variants)
+import type { CommandSpark, CommandBuilder, SubcommandHandler, ComponentSpark, CustomIdPattern, ReadyClient, ScheduledContext, AnySpark } from '@/core/sparks';
 // Guards
-import { createGuard, guardPass, guardFail, runGuard, runGuards } from '@/core/guards';
-import type { Guard, GuardResult, GuardOutput } from '@/core/guards';
+import { createGuard, guardPass, guardFail, getGuardMeta, resolveGuards, processGuards } from '@/core/guards';
+import type { Guard, GuardResult, GuardMeta, ProcessGuardsOptions } from '@/core/guards';
 // Built-in guards
-import { inCachedGuild, hasPermission, botHasPermission, channelType, isUser, notBot, messageInGuild, rateLimit, hasSystemChannel, hasPublicUpdatesChannel, hasRulesChannel, hasSafetyAlertsChannel } from '@/guards/built-in';
+import { inCachedGuild, hasPermission, botHasPermission, hasPermissionIn, botHasPermissionIn, hasChannel, channelType, isUser, notBot, messageInGuild, rateLimit, hasSystemChannel, hasPublicUpdatesChannel, hasRulesChannel, hasSafetyAlertsChannel } from '@/guards/built-in';
 import type { GuildInteraction, ChannelTypedInteraction } from '@/guards/built-in';
 // Error handling
-import { attempt, isError, isResolved, unwrap, unwrapOr, mapResult, mapError } from '@/core/lib/attempt';
+import { attempt, isError, unwrap, unwrapOr } from '@/core/lib/attempt';
 import type { Result } from '@/core/lib/attempt';
-// Logger & error classes
-import { AppError, HttpError, ValidationError, DatabaseError } from '@/core/lib/logger';
+// Logger & errors
+import { AppError } from '@/core/lib/logger';
 import type { ExtendedLogger } from '@/core/lib/logger';
 // Discord.js (Client is augmented with logger, config, commands, components, componentPatterns, scheduledJobs)
-import { SlashCommandBuilder, ContextMenuCommandBuilder, ApplicationCommandType, Events, MessageFlags, PermissionFlagsBits, ChannelType as DChannelType, type Client, type ChatInputCommandInteraction, type CommandInteraction, type MessageContextMenuCommandInteraction, type UserContextMenuCommandInteraction, type AutocompleteInteraction, type ButtonInteraction, type StringSelectMenuInteraction, type ModalSubmitInteraction, type Message, type ClientEvents } from 'discord.js';
+import { SlashCommandBuilder, ContextMenuCommandBuilder, ApplicationCommandType, Events, MessageFlags, PermissionFlagsBits, ChannelType as DChannelType, type Client, type ChatInputCommandInteraction, type CommandInteraction, type AutocompleteInteraction, type ButtonInteraction, type StringSelectMenuInteraction, type ModalSubmitInteraction, type Message, type ClientEvents } from 'discord.js';
 ```
 
 ## 1. defineCommand
@@ -36,7 +36,8 @@ defineCommand<TGuarded extends CommandInteraction = ChatInputCommandInteraction>
 ```
 
 **Spark shape:** `{ type:'command', id:command.name, command, guards, action, execute(), register() }`
-**execute(interaction: CommandInteraction):** runGuards → if fail: log debug, return fail → action wrapped in attempt() → log error on throw → return GuardResult
+**Define-time:** `resolveGuards(guards, 'command')` — validates compatibility, auto-resolves deps
+**execute(interaction: CommandInteraction):** processGuards → if fail: return fail → action wrapped in attempt() → log error on throw → return GuardResult
 **register():** `client.commands.set(command.name, spark)`
 
 ```ts
@@ -97,7 +98,8 @@ defineCommandGroup<TGuarded extends ChatInputCommandInteraction = ChatInputComma
 ```
 
 **Validation:** Throws if neither subcommands nor groups has entries.
-**execute(interaction: CommandInteraction):** Rejects non-slash (context-menu) interactions immediately with `{ ok: false, reason: 'Command groups only support slash commands.' }` → top-level guards → resolve subcommand via getSubcommandGroup(false)/getSubcommand(false) → if no handler: warn + return fail → subcommand guards (output narrows interaction for action) → action → returns subcommand GuardResult
+**Define-time:** `resolveGuards(guards, 'command')` for top-level; subcommand guards resolved in `runSubcommand`
+**execute(interaction: CommandInteraction):** Rejects non-slash (context-menu) interactions immediately with `{ ok: false, reason: 'Command groups only support slash commands.' }` → processGuards (top-level) → resolve subcommand via getSubcommandGroup(false)/getSubcommand(false) → if no handler: warn + return fail → subcommand processGuards + action → returns subcommand GuardResult
 **Autocomplete:** Auto-detected if any handler has `autocomplete`. Routes to correct handler.
 **register():** `client.commands.set(command.name, spark)` (same as command)
 
@@ -129,7 +131,7 @@ export const manage = defineCommandGroup({
 ```ts
 defineComponent<TInput extends AnyComponentInteraction = ButtonInteraction, TGuarded extends TInput = TInput>({
   id: CustomIdPattern,                    // string | RegExp
-  guards?: readonly Guard<TInput,TGuarded>[],
+  guards?: readonly Guard<any,any>[],
   action: (interaction: TGuarded) => void | Promise<void>,
 }): ComponentSpark<TInput,TGuarded>
 ```
@@ -144,8 +146,9 @@ defineComponent<TInput extends AnyComponentInteraction = ButtonInteraction, TGua
 | RegExp | `/^role-(\d+)$/` | `client.componentPatterns` | O(n) |
 
 **Spark shape:** `{ type:'component', id, key:(id instanceof RegExp ? id.source : id), guards, action, matches(), execute(), register() }`
+**Define-time:** `resolveGuards(guards, 'component')` — validates compatibility, auto-resolves deps
 **matches():** delegates to matchCustomId(customId, id).matched
-**execute():** same guard→action pattern as commands
+**execute():** processGuards → action pattern (same as commands)
 
 ```ts
 // Exact match button
@@ -192,13 +195,14 @@ export const roleSelect = defineComponent<StringSelectMenuInteraction, GuildInte
 defineGatewayEvent<E extends keyof ClientEvents, TGuarded extends ClientEvents[E][0] = ClientEvents[E][0]>({
   event: E,
   once?: boolean,                              // default false
-  guards?: readonly Guard<EventArg<E>,TGuarded>[],  // guards run on first event arg only
+  guards?: readonly Guard<any,any>[],
   action: (...args: [TGuarded, ...Tail<ClientEvents[E]>, Client]) => void | Promise<void>,
 }): GatewayEventSpark<E,TGuarded>
 ```
 
 **Spark shape:** `{ type:'gateway-event', event, once, guards, action, execute(), register() }`
-**execute():** guards on eventArgs[0] → action(guardedFirst, ...restArgs, client)
+**Define-time:** `resolveGuards(guards, 'gateway-event')` — validates compatibility, skips dep resolution
+**execute():** processGuards (silent mode) on eventArgs[0] → action(guardedFirst, ...restArgs, client)
 **register():** `client.on(event, handler)` or `client.once(event, handler)`
 
 ```ts
@@ -231,7 +235,7 @@ defineScheduledEvent({
   id: string,
   schedule: string | string[],        // cron expression(s)
   timezone?: string,                   // IANA tz, default 'UTC'
-  guards?: readonly Guard<ScheduledContext,ScheduledContext>[],
+  guards?: readonly Guard<any,any>[],
   action: (ctx: ScheduledContext) => void | Promise<void>,
 }): ScheduledEventSpark
 
@@ -239,6 +243,7 @@ defineScheduledEvent({
 ```
 
 **Spark shape:** `{ type:'scheduled-event', id, schedule, timezone, guards, action, execute(), register(), stop() }`
+**Define-time:** `resolveGuards(guards, 'scheduled-event')` — validates compatibility, skips dep resolution
 **register():** Creates CronJob(s) via `CronJob.from()`, stores in `client.scheduledJobs` keyed `"id:cronExpr"`, starts immediately
 **stop():** Stops and removes jobs for this spark
 **stopAllScheduledJobs(client):** Stops all registered jobs (for shutdown)
@@ -263,30 +268,77 @@ type GuardResult<T> = { ok: true; value: T } | { ok: false; reason: string };
 type Guard<TInput, TOutput extends TInput = TInput> = (input: TInput) => GuardResult<TOutput> | Promise<GuardResult<TOutput>>;
 ```
 
+### Guard metadata
+
+```ts
+const GUARD_META: unique symbol;  // Symbol for attaching metadata
+
+interface GuardMeta {
+  name: string;                                  // Human-readable guard name
+  requires?: readonly Guard<any, any>[];         // Guards that must run before this one
+  incompatibleWith?: readonly SparkType[];       // Spark types this guard can't be used with
+  channelResolver?: (input: unknown) => GuildBasedChannel | null;  // Target channel resolver
+}
+
+type SparkType = 'command' | 'component' | 'gateway-event' | 'scheduled-event';
+```
+
 ### Guard utilities
 
 ```ts
-createGuard(fn)          // identity, aids type inference
-guardPass(value)         // { ok: true, value }
-guardFail(reason)        // { ok: false, reason }
-runGuard(guard, input)   // single guard
-runGuards(guards, input) // sequential chain, short-circuits on fail, type narrows
+createGuard(fn, meta?)      // wraps guard fn, optionally attaches GuardMeta
+guardPass(value)             // { ok: true, value }
+guardFail(reason)            // { ok: false, reason }
+runGuard(guard, input)       // single guard
+runGuards(guards, input)     // sequential chain, short-circuits on fail, type narrows
+getGuardMeta(guard)          // reads GuardMeta from guard, or undefined
+resolveGuards(guards, sparkType) // define-time: validates compatibility, auto-resolves deps
+processGuards(guards, input, logger, context, options?) // execute-time: runs guards with error handling
 ```
+
+### processGuards behavior
+
+```ts
+processGuards(guards, input, logger, context, { silent?: boolean })
+```
+
+- **Intentional failure** (`{ ok: false }`): logged at `info` (user-facing) or `warn` (silent)
+- **Guard exception** (throw): caught, wrapped in `AppError('ERR_GUARD_EXCEPTION')`, logged at `error`, returns `{ ok: false, reason: 'An internal error occurred.' }`
+- **Silent mode**: Used by gateway-event and scheduled-event sparks (no user to notify)
+
+### resolveGuards behavior
+
+```ts
+resolveGuards(guards, sparkType)
+```
+
+- Validates each guard's `incompatibleWith` against spark type → throws `AppError('ERR_GUARD_INCOMPATIBLE')`
+- For `command`/`component`: auto-prepends missing `requires` deps, deduplicates by reference, corrects mis-ordered deps
+- For `gateway-event`/`scheduled-event`: deduplicates guards by reference while skipping dep resolution
+- Validates transitive dependency compatibility too
+- Order only matters for guards without a `requires` relationship — connected guards are auto-ordered
 
 ### Creating custom guards
 
 ```ts
-// Simple constant guard
+// Simple constant guard (with metadata)
 export const myGuard = createGuard<InputType, OutputType>((input) => {
   if (condition) return guardPass(input as OutputType);
   return guardFail('Reason');
+}, {
+  name: 'myGuard',
+  requires: [inCachedGuild],
+  incompatibleWith: ['scheduled-event'],
 });
 
-// Factory guard (parameterized)
+// Factory guard (parameterized, with metadata)
 export function myGuard<T extends SomeConstraint>(param: ParamType): Guard<T, T> {
   return createGuard((input) => {
     if (check(input, param)) return guardPass(input);
     return guardFail('Reason');
+  }, {
+    name: 'myGuard',
+    incompatibleWith: ['scheduled-event'],
   });
 }
 ```
@@ -297,18 +349,28 @@ export function myGuard<T extends SomeConstraint>(param: ParamType): Guard<T, T>
 |---|---|---|---|
 | `inCachedGuild` | constant | `Interaction` → `GuildInteraction` | Narrows: adds guild, guildId, member, channel |
 | `hasPermission(perms, msg?)` | factory | `{member:GuildMember}` → same | Checks member.permissions.has(perms) |
-| `botHasPermission(perms, msg?)` | factory | `{guild:Guild, channel:GuildBasedChannel}` → same | Checks bot perms in channel |
+| `botHasPermission(perms, msg?)` | factory | `{guild:Guild}` → same | Checks bot perms at guild level |
+| `hasPermissionIn(perms, channelGuard?, msg?)` | factory | `{member:GuildMember, channel:GuildBasedChannel}` → same | Checks user perms in channel |
+| `botHasPermissionIn(perms, channelGuard?, msg?)` | factory | `{guild:Guild, channel:GuildBasedChannel}` → same | Checks bot perms in channel |
+| `hasChannel(idOrFn)` | factory | `{guild:Guild}` → same | Checks channel exists in guild cache |
 | `channelType(...types)` | factory | `Interaction` → `ChannelTypedInteraction<T,C>` | Narrows channel type |
 | `isUser(userIds, msg?)` | factory | `Interaction` → same | Checks interaction.user.id in set |
 | `notBot` | constant | `Message` → `Message` | Checks !message.author.bot |
 | `messageInGuild` | constant | `Message` → `Message<true>` | Narrows to guild message |
 | `rateLimit({limit,window,keyFn?,message?})` | factory | `Interaction` → same | In-memory rate limit, per-user default |
-| `hasSystemChannel()` | callable factory | `{guild:Guild}` → narrowed | Checks guild.systemChannel exists + bot can send |
-| `hasPublicUpdatesChannel()` | callable factory | `{guild:Guild}` → narrowed | Same for publicUpdatesChannel |
-| `hasRulesChannel()` | callable factory | `{guild:Guild}` → narrowed | Same for rulesChannel |
-| `hasSafetyAlertsChannel()` | callable factory | `{guild:Guild}` → narrowed | Same for safetyAlertsChannel |
+| `hasSystemChannel` | constant | `{guild:Guild}` → narrowed | Checks guild.systemChannel exists |
+| `hasPublicUpdatesChannel` | constant | `{guild:Guild}` → narrowed | Checks guild.publicUpdatesChannel exists |
+| `hasRulesChannel` | constant | `{guild:Guild}` → narrowed | Checks guild.rulesChannel exists |
+| `hasSafetyAlertsChannel` | constant | `{guild:Guild}` → narrowed | Checks guild.safetyAlertsChannel exists |
 
-**Guard chaining:** Guards compose left-to-right. Output of guard N is input to guard N+1. Use `inCachedGuild` first when `hasPermission`/`botHasPermission` follow (they need member/guild).
+**Guard chaining:** Guards compose left-to-right. Output of guard N is input to guard N+1. Dependencies like `inCachedGuild` are auto-resolved for command/component sparks.
+
+**Channel guards + permission guards:** Special channel guards and `hasChannel` carry `channelResolver` metadata. Pass them to `hasPermissionIn`/`botHasPermissionIn` to check perms in that channel:
+
+```ts
+guards: [botHasPermissionIn(PermissionFlagsBits.SendMessages, hasSystemChannel)]
+// Auto-resolves to: [inCachedGuild, hasSystemChannel, botHasPermissionIn(SendMessages, hasSystemChannel)]
+```
 
 ## Error Handling (attempt)
 
@@ -338,7 +400,11 @@ mapResult(result, fn) / mapError(result, fn)
 ## Logging Convention
 
 ```ts
-client.logger.debug({ command: name, reason }, 'Command guard failed');
+// processGuards handles guard logging automatically:
+// - Intentional failures: info (user-facing) or warn (silent/gateway/scheduled)
+// - Guard exceptions: error with AppError wrapping
+
+// Spark action/autocomplete logging (unchanged):
 client.logger.error({ err, command: name }, 'Command action failed');   // use 'err' key for errors
 client.logger.warn({ err, command: name }, 'Autocomplete handler failed');
 client.logger.info({ key: val }, 'Descriptive message');

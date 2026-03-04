@@ -410,7 +410,7 @@ describe('ComponentSpark.execute', () => {
 		expect(client.logger.error).toHaveBeenCalled();
 	});
 
-	test('logs debug when guard fails', async () => {
+	test('logs info when guard fails', async () => {
 		const failingGuard = () => ({
 			ok: false as const,
 			reason: 'Test failure',
@@ -427,7 +427,10 @@ describe('ComponentSpark.execute', () => {
 
 		await spark.execute(interaction);
 
-		expect(client.logger.debug).toHaveBeenCalled();
+		expect(client.logger.info).toHaveBeenCalledWith(
+			{ context: 'component:test', reason: 'Test failure' },
+			'Guard check failed',
+		);
 	});
 });
 

@@ -328,7 +328,7 @@ describe('CommandGroupSpark.execute', () => {
 			expect(actionMock).not.toHaveBeenCalled();
 		});
 
-		test('logs debug when top-level guard fails', async () => {
+		test('logs info when top-level guard fails', async () => {
 			const spark = defineCommandGroup({
 				command: createMockCommand('manage'),
 				guards: [
@@ -344,9 +344,9 @@ describe('CommandGroupSpark.execute', () => {
 
 			await spark.execute(interaction);
 
-			expect(client.logger.debug).toHaveBeenCalledWith(
-				{ command: 'manage', reason: 'Test failure' },
-				'Command group guard failed',
+			expect(client.logger.info).toHaveBeenCalledWith(
+				{ context: 'command:manage', reason: 'Test failure' },
+				'Guard check failed',
 			);
 		});
 	});
@@ -414,7 +414,7 @@ describe('CommandGroupSpark.execute', () => {
 			expect(actionMock).not.toHaveBeenCalled();
 		});
 
-		test('logs debug when subcommand guard fails', async () => {
+		test('logs info when subcommand guard fails', async () => {
 			const spark = defineCommandGroup({
 				command: createMockCommand('manage'),
 				subcommands: {
@@ -435,9 +435,9 @@ describe('CommandGroupSpark.execute', () => {
 
 			await spark.execute(interaction);
 
-			expect(client.logger.debug).toHaveBeenCalledWith(
-				{ command: 'manage add', reason: 'No perms' },
-				'Subcommand guard failed',
+			expect(client.logger.info).toHaveBeenCalledWith(
+				{ context: 'command:manage add', reason: 'No perms' },
+				'Guard check failed',
 			);
 		});
 

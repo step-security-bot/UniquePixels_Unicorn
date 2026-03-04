@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import type { Guild, GuildTextBasedChannel } from 'discord.js';
-import { PermissionsBitField } from 'discord.js';
+import type { Guild } from 'discord.js';
 import type { GuardResult } from '@/core/guards';
+import { getGuardMeta } from '@/core/guards';
 import {
 	hasPublicUpdatesChannel,
 	hasRulesChannel,
@@ -15,7 +15,7 @@ type SpecialChannelKey =
 	| 'rulesChannel'
 	| 'safetyAlertsChannel';
 
-// Helper to extract failure reason from guard result
+/** Extract failure reason from guard result. */
 function getFailureReason(result: GuardResult<unknown>): string {
 	if (result.ok) {
 		throw new Error('Expected failure result but got success');
@@ -23,30 +23,16 @@ function getFailureReason(result: GuardResult<unknown>): string {
 	return result.reason;
 }
 
-// Helper to create mock input with guild and special channels
+/** Create mock input with a guild containing the specified special channel. */
 function createMockGuildInput(
 	channelKey: SpecialChannelKey,
 	channelExists: boolean,
-	botHasPermissions: boolean,
-	botMemberAvailable: boolean,
 ) {
-	const channel = channelExists
-		? ({ id: '123' } as GuildTextBasedChannel)
-		: null;
-
-	const botMember = botMemberAvailable
-		? {
-				permissionsIn: () =>
-					new PermissionsBitField(
-						botHasPermissions ? [PermissionsBitField.Flags.SendMessages] : [],
-					),
-			}
-		: null;
+	const channel = channelExists ? { id: '123' } : null;
 
 	return {
 		guild: {
 			[channelKey]: channel,
-			members: { me: botMember },
 		} as unknown as Guild,
 	};
 }
@@ -55,36 +41,35 @@ function createMockGuildInput(
 const guardTestCases = [
 	{
 		name: 'hasSystemChannel',
-		factory: hasSystemChannel,
+		guard: hasSystemChannel,
 		channelKey: 'systemChannel' as const,
 		channelName: 'system channel',
 	},
 	{
 		name: 'hasPublicUpdatesChannel',
-		factory: hasPublicUpdatesChannel,
+		guard: hasPublicUpdatesChannel,
 		channelKey: 'publicUpdatesChannel' as const,
 		channelName: 'public updates channel',
 	},
 	{
 		name: 'hasRulesChannel',
-		factory: hasRulesChannel,
+		guard: hasRulesChannel,
 		channelKey: 'rulesChannel' as const,
 		channelName: 'rules channel',
 	},
 	{
 		name: 'hasSafetyAlertsChannel',
-		factory: hasSafetyAlertsChannel,
+		guard: hasSafetyAlertsChannel,
 		channelKey: 'safetyAlertsChannel' as const,
 		channelName: 'safety alerts channel',
 	},
 ] as const;
 
 // Run the same test suite for each special channel guard
-for (const { name, factory, channelKey, channelName } of guardTestCases) {
+for (const { name, guard, channelKey, channelName } of guardTestCases) {
 	describe(name, () => {
-		test('passes when channel exists and bot has permission', async () => {
-			const input = createMockGuildInput(channelKey, true, true, true);
-			const guard = factory();
+		test('passes when channel exists', async () => {
+			const input = createMockGuildInput(channelKey, true);
 
 			const result = await guard(input);
 
@@ -95,8 +80,7 @@ for (const { name, factory, channelKey, channelName } of guardTestCases) {
 		});
 
 		test('fails when channel is not configured', async () => {
-			const input = createMockGuildInput(channelKey, false, true, true);
-			const guard = factory();
+			const input = createMockGuildInput(channelKey, false);
 
 			const result = await guard(input);
 
@@ -106,26 +90,33 @@ for (const { name, factory, channelKey, channelName } of guardTestCases) {
 			expect(reason).toContain('not have');
 		});
 
-		test('fails when bot lacks SendMessages permission', async () => {
-			const input = createMockGuildInput(channelKey, true, false, true);
-			const guard = factory();
+		test('has correct metadata', () => {
+			const meta = getGuardMeta(guard);
 
-			const result = await guard(input);
-
-			expect(result.ok).toBe(false);
-			const reason = getFailureReason(result);
-			expect(reason).toContain('permission');
-			expect(reason).toContain(channelName);
+			expect(meta).toBeDefined();
+			expect(meta!.name).toBe(name);
+			expect(meta!.incompatibleWith).toContain('scheduled-event');
+			expect(meta!.channelResolver).toBeInstanceOf(Function);
 		});
 
-		test('fails when bot member is not available', async () => {
-			const input = createMockGuildInput(channelKey, true, true, false);
-			const guard = factory();
+		test('channelResolver returns the channel from input', () => {
+			const meta = getGuardMeta(guard);
+			const channel = { id: '456' };
+			const input = { guild: { [channelKey]: channel } };
 
-			const result = await guard(input);
+			const resolved = meta!.channelResolver!(input);
 
-			expect(result.ok).toBe(false);
-			expect(getFailureReason(result)).toContain('Unable to verify');
+			// Reference equality — same object
+			expect(resolved === channel).toBe(true);
+		});
+
+		test('channelResolver returns null when channel is absent', () => {
+			const meta = getGuardMeta(guard);
+			const input = { guild: { [channelKey]: null } };
+
+			const resolved = meta!.channelResolver!(input);
+
+			expect(resolved).toBeNull();
 		});
 	});
 }
@@ -135,19 +126,13 @@ describe('special channel guards with different input types', () => {
 	test('works with interaction-like input', async () => {
 		const interaction = {
 			guild: {
-				systemChannel: { id: '123' } as GuildTextBasedChannel,
-				members: {
-					me: {
-						permissionsIn: () =>
-							new PermissionsBitField([PermissionsBitField.Flags.SendMessages]),
-					},
-				},
+				systemChannel: { id: '123' },
 			} as unknown as Guild,
 			member: {},
 			channel: {},
 		};
 
-		const result = await hasSystemChannel()(interaction);
+		const result = await hasSystemChannel(interaction);
 
 		expect(result.ok).toBe(true);
 	});
@@ -155,17 +140,11 @@ describe('special channel guards with different input types', () => {
 	test('works with gateway event input', async () => {
 		const event = {
 			guild: {
-				rulesChannel: { id: '789' } as GuildTextBasedChannel,
-				members: {
-					me: {
-						permissionsIn: () =>
-							new PermissionsBitField([PermissionsBitField.Flags.SendMessages]),
-					},
-				},
+				rulesChannel: { id: '789' },
 			} as unknown as Guild,
 		};
 
-		const result = await hasRulesChannel()(event);
+		const result = await hasRulesChannel(event);
 
 		expect(result.ok).toBe(true);
 	});

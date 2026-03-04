@@ -159,7 +159,7 @@ describe('defineCommand', () => {
 			expect(action).not.toHaveBeenCalled();
 		});
 
-		test('logs debug on guard failure', async () => {
+		test('logs info on guard failure', async () => {
 			const guard = failGuard('Denied');
 			const spark = defineCommand({
 				command: createMockCommand('ping'),
@@ -171,9 +171,9 @@ describe('defineCommand', () => {
 			const interaction = createMockChatInputInteraction({ client });
 			await spark.execute(interaction);
 
-			expect(client.logger.debug).toHaveBeenCalledWith(
-				{ command: 'ping', reason: 'Denied' },
-				'Command guard failed',
+			expect(client.logger.info).toHaveBeenCalledWith(
+				{ context: 'command:ping', reason: 'Denied' },
+				'Guard check failed',
 			);
 		});
 

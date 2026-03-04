@@ -12,4 +12,8 @@ export const notBot: Guard<Message, Message> = createGuard<Message, Message>(
 		}
 		return guardPass(message);
 	},
+	{
+		name: 'notBot',
+		incompatibleWith: ['command', 'component', 'scheduled-event'],
+	},
 );

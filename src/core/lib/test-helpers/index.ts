@@ -8,3 +8,11 @@ export {
 	createMockMessage,
 	createMockReadyClient,
 } from './mock-interaction';
+export {
+	expectChannelGuardInRequires,
+	expectPermissionGuardMeta,
+	mockChannelGuard,
+	nullChannelGuard,
+	Perms,
+	targetChannel,
+} from './mock-permissions';

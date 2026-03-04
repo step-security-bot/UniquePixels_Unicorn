@@ -1,6 +1,6 @@
 import type { Client, ClientEvents, Events } from 'discord.js';
 import type { Guard, GuardResult } from '@/core/guards';
-import { runGuards } from '@/core/guards';
+import { processGuards, resolveGuards } from '@/core/guards';
 import { attempt, isError } from '@/core/lib/attempt';
 
 /**
@@ -34,7 +34,8 @@ export interface GatewayEventOptions<
 	/** Whether this event should only fire once (e.g., ClientReady) */
 	once?: boolean;
 	/** Guards to run before the action (optional) */
-	guards?: readonly Guard<EventArg<E>, TGuarded>[];
+	// biome-ignore lint/suspicious/noExplicitAny: Guard chains have heterogeneous input/output types; type safety is enforced by runGuards at runtime
+	guards?: readonly Guard<any, any>[];
 	/** The action to run when the event fires */
 	action: GatewayEventAction<E, TGuarded>;
 }
@@ -49,7 +50,8 @@ export interface GatewayEventSpark<
 	readonly type: 'gateway-event';
 	readonly event: E;
 	readonly once: boolean;
-	readonly guards: readonly Guard<EventArg<E>, TGuarded>[];
+	// biome-ignore lint/suspicious/noExplicitAny: Guard chains have heterogeneous input/output types; type safety is enforced by runGuards at runtime
+	readonly guards: readonly Guard<any, any>[];
 	readonly action: GatewayEventAction<E, TGuarded>;
 
 	/** Execute the event handler (runs guards then action) */
@@ -90,7 +92,8 @@ export function defineGatewayEvent<
 	E extends keyof ClientEvents,
 	TGuarded extends EventArg<E> = EventArg<E>,
 >(options: GatewayEventOptions<E, TGuarded>): GatewayEventSpark<E, TGuarded> {
-	const { event, once = false, guards = [], action } = options;
+	const { event, once = false, action } = options;
+	const guards = resolveGuards(options.guards ?? [], 'gateway-event');
 
 	return {
 		type: 'gateway-event',
@@ -103,17 +106,16 @@ export function defineGatewayEvent<
 			eventArgs: ClientEvents[E],
 			client: Client,
 		): Promise<GuardResult<TGuarded>> {
-			// Run guards on the first event arg
-			const guardResult = await runGuards(
-				guards as readonly Guard<unknown, unknown>[],
+			// Run guards on the first event arg with centralized error handling
+			const guardResult = await processGuards(
+				guards,
 				eventArgs[0],
+				client.logger,
+				`gateway:${String(event)}`,
+				{ silent: true },
 			);
 
 			if (!guardResult.ok) {
-				client.logger.debug(
-					{ event, reason: guardResult.reason },
-					'Gateway event guard failed',
-				);
 				return guardResult as GuardResult<TGuarded>;
 			}
 

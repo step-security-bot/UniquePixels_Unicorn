@@ -9,7 +9,6 @@ import {
 import {
 	ChannelType,
 	type Guild,
-	type GuildBasedChannel,
 	type GuildMember,
 	type Interaction,
 	PermissionsBitField,
@@ -186,17 +185,17 @@ describe('hasPermission', () => {
 });
 
 describe('botHasPermission', () => {
-	test('passes when bot has required permission in channel', async () => {
+	test('passes when bot has required permission at guild level', async () => {
 		const guard = botHasPermission(PermissionsBitField.Flags.SendMessages);
 
 		const botMember = {
-			permissionsIn: () =>
-				new PermissionsBitField([PermissionsBitField.Flags.SendMessages]),
+			permissions: new PermissionsBitField([
+				PermissionsBitField.Flags.SendMessages,
+			]),
 		};
 
 		const input = {
 			guild: { members: { me: botMember } } as unknown as Guild,
-			channel: {} as GuildBasedChannel,
 		};
 
 		const result = await guard(input);
@@ -204,17 +203,17 @@ describe('botHasPermission', () => {
 		expect(result.ok).toBe(true);
 	});
 
-	test('fails when bot lacks required permission in channel', async () => {
+	test('fails when bot lacks required permission at guild level', async () => {
 		const guard = botHasPermission(PermissionsBitField.Flags.ManageMessages);
 
 		const botMember = {
-			permissionsIn: () =>
-				new PermissionsBitField([PermissionsBitField.Flags.SendMessages]),
+			permissions: new PermissionsBitField([
+				PermissionsBitField.Flags.SendMessages,
+			]),
 		};
 
 		const input = {
 			guild: { members: { me: botMember } } as unknown as Guild,
-			channel: {} as GuildBasedChannel,
 		};
 
 		const result = await guard(input);
@@ -227,7 +226,6 @@ describe('botHasPermission', () => {
 
 		const input = {
 			guild: { members: { me: null } } as unknown as Guild,
-			channel: {} as GuildBasedChannel,
 		};
 
 		const result = await guard(input);
@@ -246,12 +244,11 @@ describe('botHasPermission', () => {
 		);
 
 		const botMember = {
-			permissionsIn: () => new PermissionsBitField([]),
+			permissions: new PermissionsBitField([]),
 		};
 
 		const input = {
 			guild: { members: { me: botMember } } as unknown as Guild,
-			channel: {} as GuildBasedChannel,
 		};
 
 		const result = await guard(input);
