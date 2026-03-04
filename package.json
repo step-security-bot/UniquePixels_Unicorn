@@ -17,7 +17,7 @@
 		"qa:lint": "biome check",
 		"qa:lint-ci": "biome ci --reporter=github --diagnostic-level=warn",
 		"qa:tsc": "tsc --noEmit --skipLibCheck",
-		"qa:test": "bun test && bun scripts/patch-lcov.ts"
+		"qa:test": "bun test && bun scripts/check-coverage.ts"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.5",

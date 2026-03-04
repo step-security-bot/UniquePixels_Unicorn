@@ -1,7 +1,10 @@
 /**
- * Patches coverage/lcov.info with 0-coverage entries for source files
- * not covered by any test. This ensures Codecov reports on ALL source
- * files, not just those imported during tests.
+ * Checks that every source file is imported by at least one test.
+ *
+ * Bun's coverage threshold enforces 100% line coverage for files that ARE
+ * imported, but it can't know about files that no test ever touches. This
+ * script fills that gap by cross-referencing the lcov report against the
+ * full set of source files.
  *
  * Exclusion patterns are read from bunfig.toml `coveragePathIgnorePatterns`
  * (single source of truth), plus built-in excludes for test and declaration files.
@@ -84,11 +87,15 @@ for await (const file of glob.scan({ cwd: '.' })) {
 	}
 }
 
+const green = (text: string) => `\x1b[32m${text}\x1b[0m`;
+const red = (text: string) => `\x1b[31m${text}\x1b[0m`;
+const dim = (text: string) => `\x1b[2m${text}\x1b[0m`;
+
 const untestedFiles = sourceFiles.filter((file) => !coveredFiles.has(file));
 
 if (untestedFiles.length === 0) {
 	// biome-ignore lint/suspicious/noConsole: CLI script output
-	console.log('All source files have test coverage.');
+	console.log(green('All source files have test coverage.'));
 	process.exit(0);
 }
 
@@ -99,44 +106,27 @@ const entries = await Promise.all(
 	})),
 );
 
-const patchable = entries.filter(
+const uncovered = entries.filter(
 	({ content }) => !content.includes(IGNORE_DIRECTIVE),
 );
 
-if (patchable.length === 0) {
+if (uncovered.length === 0) {
 	// biome-ignore lint/suspicious/noConsole: CLI script output
-	console.log('All source files have test coverage or are ignored.');
+	console.log(green('All source files have test coverage or are ignored.'));
 	process.exit(0);
 }
 
-let patch = '';
-
-for (const { file, content } of patchable) {
-	const lines = content.split('\n');
-	patch += 'TN:\n';
-	patch += `SF:${file}\n`;
-	patch += 'FNF:0\n';
-	patch += 'FNH:0\n';
-
-	let lineCount = 0;
-	for (const [i, line] of lines.entries()) {
-		if (line.trim() !== '') {
-			patch += `DA:${i + 1},0\n`;
-			lineCount++;
-		}
-	}
-
-	patch += `LF:${lineCount}\n`;
-	patch += 'LH:0\n';
-	patch += 'end_of_record\n';
-}
-
-const separator = lcov.endsWith('\n') ? '' : '\n';
-await Bun.write(LCOV_PATH, lcov + separator + patch);
-
 // biome-ignore lint/suspicious/noConsole: CLI script output
-console.log(`Patched ${patchable.length} untested file(s) into ${LCOV_PATH}:`);
-for (const { file } of patchable) {
+console.error(
+	red(`\n${uncovered.length} source file(s) have no test coverage:\n`),
+);
+for (const { file } of uncovered) {
 	// biome-ignore lint/suspicious/noConsole: CLI script output
-	console.log(`  - ${file}`);
+	console.error(`  ${red('-')} ${file}`);
 }
+// biome-ignore lint/suspicious/noConsole: CLI script output
+console.error(
+	dim('\nEvery source file must be imported by at least one test.'),
+	dim('\nAdd a test or include a `coverage-ignore-file` comment to opt out.\n'),
+);
+process.exit(1);
