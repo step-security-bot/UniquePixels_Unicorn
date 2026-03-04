@@ -546,9 +546,9 @@ If any guard in the chain fails, the action never runs.
 
 ## Receiving Narrowed Types in Actions
 
-Guards narrow types at runtime, but TypeScript needs you to declare the expected narrowed type via a generic parameter. The command-oriented spark definition functions (`defineCommand`, `defineCommandWithAutocomplete`, `defineCommandGroup`), `SubcommandHandler`, `defineComponent`, and `defineGatewayEvent` all accept a `TGuarded` generic. For command-oriented functions it defaults to `ChatInputCommandInteraction`. Without it, `action` receives the base type -- so `interaction.guild` stays nullable even if `inCachedGuild` is in your guard chain.
+Most of the time, [automatic type narrowing](#automatic-type-narrowing) handles this for you — when guards are present, the `action` callback's parameter is narrowed automatically. If you need to specify the narrowed type manually (e.g., when inference falls short or when no guards are used), the `define*` functions, `SubcommandHandler`, and `defineGatewayEvent` all accept an explicit `TGuarded` generic. For command-oriented functions it defaults to `ChatInputCommandInteraction`.
 
-Pass the narrowed type explicitly to get type safety:
+Pass the narrowed type explicitly:
 
 ```ts
 import { type ChatInputCommandInteraction, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
@@ -664,16 +664,15 @@ export function requireOption(name: string): Guard<Interaction, Interaction> {
 When guards are provided to a `define*` function, the framework automatically narrows the `action` callback's parameter type using `NarrowedBy<TBase, Guards>`. This means guard output types flow through to the action without manual type assertions.
 
 ```ts
-// Without auto-narrowing: guild.systemChannel is `TextChannel | null` — requires `!`
-const joinLogBefore = defineGatewayEvent({
+// Without guards: guild.systemChannel is `TextChannel | null` — requires `!`
+const joinLogManual = defineGatewayEvent({
   event: Events.GuildMemberAdd,
-  guards: [g.hasSystemChannel],
   action: (member) => {
     member.guild.systemChannel!.send('Welcome!'); // ← non-null assertion
   },
 });
 
-// With auto-narrowing: guild.systemChannel is `TextChannel` — no assertion needed
+// With guards + auto-narrowing: guild.systemChannel is `TextChannel` — no assertion needed
 export const joinLog = defineGatewayEvent({
   event: Events.GuildMemberAdd,
   guards: [g.hasSystemChannel],

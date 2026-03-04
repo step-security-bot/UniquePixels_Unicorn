@@ -27,7 +27,10 @@ describe('ping spark', () => {
 
 		await ping.execute(interaction);
 
-		expect(client.logger.error).toHaveBeenCalledTimes(1);
+		expect(client.logger.error).toHaveBeenCalledWith(
+			expect.objectContaining({ err: expect.any(Error) }),
+			'Ping reply failed',
+		);
 	});
 
 	test('logs error when fetchReply fails', async () => {
@@ -43,7 +46,10 @@ describe('ping spark', () => {
 
 		await ping.execute(interaction);
 
-		expect(client.logger.error).toHaveBeenCalledTimes(1);
+		expect(client.logger.error).toHaveBeenCalledWith(
+			expect.objectContaining({ err: expect.any(Error) }),
+			'Ping fetchReply failed',
+		);
 	});
 
 	test('logs error when editReply fails', async () => {
@@ -61,7 +67,10 @@ describe('ping spark', () => {
 
 		await ping.execute(interaction);
 
-		expect(client.logger.error).toHaveBeenCalledTimes(1);
+		expect(client.logger.error).toHaveBeenCalledWith(
+			expect.objectContaining({ err: expect.any(Error) }),
+			'Ping editReply failed',
+		);
 	});
 
 	test('replies with latency calculation', async () => {
