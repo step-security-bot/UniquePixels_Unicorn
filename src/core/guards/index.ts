@@ -41,7 +41,7 @@ export type GuardOutput<G> =
  * Computes the intersection of a base type with all guard output types.
  * Preserves the base type while overlaying each guard's narrowing.
  *
- * Unlike {@link ChainedGuardOutput} (which replaces the type at each step),
+ * Unlike a replacement-based approach (where each guard replaces the previous type),
  * this intersects — so `GuildMember` stays `GuildMember` with extra constraints.
  *
  * @example

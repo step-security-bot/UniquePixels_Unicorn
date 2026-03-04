@@ -678,8 +678,8 @@ export function requireOption(name: string): Guard<Interaction, Interaction> {
 When guards are provided to a `define*` function, the framework automatically narrows the `action` callback's parameter type using `NarrowedBy<TBase, Guards>`. This means guard output types flow through to the action without manual type assertions.
 
 ```ts
-// Before: guild.systemChannel is `TextChannel | null` — requires `!`
-export const joinLog = defineGatewayEvent({
+// Without auto-narrowing: guild.systemChannel is `TextChannel | null` — requires `!`
+const joinLogBefore = defineGatewayEvent({
   event: Events.GuildMemberAdd,
   guards: [hasSystemChannel],
   action: (member) => {
@@ -687,7 +687,7 @@ export const joinLog = defineGatewayEvent({
   },
 });
 
-// After: guild.systemChannel is `TextChannel` — no assertion needed
+// With auto-narrowing: guild.systemChannel is `TextChannel` — no assertion needed
 export const joinLog = defineGatewayEvent({
   event: Events.GuildMemberAdd,
   guards: [hasSystemChannel],

@@ -1,3 +1,5 @@
+// Guard narrowing utility (re-exported for convenience)
+export type { NarrowedBy } from '@/core/guards';
 export {
 	type BaseCommandSpark,
 	type CommandAction,
@@ -9,14 +11,12 @@ export {
 	defineCommandWithAutocomplete,
 	hasAutocomplete,
 } from './command';
-
 // Command groups (subcommands & subcommand groups)
 export {
 	type CommandGroupOptions,
 	defineCommandGroup,
 	type SubcommandHandler,
 } from './command-group';
-
 // Component sparks
 export {
 	type AnyComponentInteraction,
@@ -31,7 +31,6 @@ export {
 	matchCustomId,
 	type SelectMenuInteraction,
 } from './component';
-
 // Gateway event sparks
 export {
 	defineGatewayEvent,
