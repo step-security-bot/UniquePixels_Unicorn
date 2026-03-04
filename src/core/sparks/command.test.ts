@@ -13,6 +13,7 @@ import {
 	failGuard,
 	passThroughGuard,
 } from '@/core/lib/test-helpers';
+import { inCachedGuild } from '@/guards/built-in/in-cached-guild';
 import {
 	defineCommand,
 	defineCommandWithAutocomplete,
@@ -542,5 +543,25 @@ describe('hasAutocomplete', () => {
 		});
 
 		expect(hasAutocomplete(spark)).toBe(false);
+	});
+});
+
+// ── Type narrowing compile-time test ────────────────────────────────
+// Verified by `bun qa:tsc` — if guard narrowing doesn't flow through,
+// TypeScript will error on the property access.
+
+describe('guard type narrowing', () => {
+	test('inCachedGuild narrows interaction.guild to non-null', () => {
+		const spark = defineCommand({
+			command: createMockCommand('test'),
+			guards: [inCachedGuild],
+			action: (interaction) => {
+				// This would fail tsc if narrowing didn't flow through —
+				// guild would be `Guild | null` without narrowing.
+				void interaction.guild.id;
+			},
+		});
+
+		expect(spark.type).toBe('command');
 	});
 });

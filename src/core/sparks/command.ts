@@ -7,7 +7,7 @@ import type {
 	SlashCommandBuilder,
 	SlashCommandSubcommandsOnlyBuilder,
 } from 'discord.js';
-import type { Guard, GuardResult } from '@/core/guards';
+import type { Guard, GuardResult, NarrowedBy } from '@/core/guards';
 import { processGuards, resolveGuards } from '@/core/guards';
 import { attempt, isError } from '@/core/lib/attempt';
 
@@ -141,6 +141,21 @@ export interface CommandSpark<
  * });
  * ```
  */
+/** Overload: when guards are provided, auto-narrow the action parameter type. */
+export function defineCommand<
+	// biome-ignore lint/suspicious/noExplicitAny: Guard<any, any> required for const tuple inference
+	const Guards extends readonly Guard<any, any>[],
+>(
+	options: CommandOptions<NarrowedBy<ChatInputCommandInteraction, Guards>> & {
+		guards: Guards;
+	},
+): CommandSpark<NarrowedBy<ChatInputCommandInteraction, Guards>>;
+
+/** Overload: without guards or with explicit TGuarded — backward compatible. */
+export function defineCommand<
+	TGuarded extends CommandInteraction = ChatInputCommandInteraction,
+>(options: CommandOptions<TGuarded>): CommandSpark<TGuarded>;
+
 export function defineCommand<
 	TGuarded extends CommandInteraction = ChatInputCommandInteraction,
 >(options: CommandOptions<TGuarded>): CommandSpark<TGuarded> {
@@ -236,6 +251,21 @@ export function defineCommand<
  * });
  * ```
  */
+/** Overload: when guards are provided, auto-narrow the action parameter type. */
+export function defineCommandWithAutocomplete<
+	// biome-ignore lint/suspicious/noExplicitAny: Guard<any, any> required for const tuple inference
+	const Guards extends readonly Guard<any, any>[],
+>(
+	options: CommandWithAutocompleteOptions<
+		NarrowedBy<ChatInputCommandInteraction, Guards>
+	> & { guards: Guards },
+): CommandSpark<NarrowedBy<ChatInputCommandInteraction, Guards>>;
+
+/** Overload: without guards or with explicit TGuarded — backward compatible. */
+export function defineCommandWithAutocomplete<
+	TGuarded extends ChatInputCommandInteraction = ChatInputCommandInteraction,
+>(options: CommandWithAutocompleteOptions<TGuarded>): CommandSpark<TGuarded>;
+
 export function defineCommandWithAutocomplete<
 	TGuarded extends ChatInputCommandInteraction = ChatInputCommandInteraction,
 >(options: CommandWithAutocompleteOptions<TGuarded>): CommandSpark<TGuarded> {

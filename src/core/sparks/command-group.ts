@@ -4,7 +4,7 @@ import type {
 	Client,
 	CommandInteraction,
 } from 'discord.js';
-import type { Guard, GuardResult } from '@/core/guards';
+import type { Guard, GuardResult, NarrowedBy } from '@/core/guards';
 import { processGuards, resolveGuards } from '@/core/guards';
 import { attempt, isError } from '@/core/lib/attempt';
 import { AppError } from '@/core/lib/logger';
@@ -126,6 +126,21 @@ function findSubcommandHandler<TGuarded extends ChatInputCommandInteraction>(
  * });
  * ```
  */
+/** Overload: when guards are provided, auto-narrow the action parameter type. */
+export function defineCommandGroup<
+	// biome-ignore lint/suspicious/noExplicitAny: Guard<any, any> required for const tuple inference
+	const Guards extends readonly Guard<any, any>[],
+>(
+	options: CommandGroupOptions<
+		NarrowedBy<ChatInputCommandInteraction, Guards>
+	> & { guards: Guards },
+): CommandSpark<NarrowedBy<ChatInputCommandInteraction, Guards>>;
+
+/** Overload: without guards or with explicit TGuarded — backward compatible. */
+export function defineCommandGroup<
+	TGuarded extends ChatInputCommandInteraction = ChatInputCommandInteraction,
+>(options: CommandGroupOptions<TGuarded>): CommandSpark<TGuarded>;
+
 export function defineCommandGroup<
 	TGuarded extends ChatInputCommandInteraction = ChatInputCommandInteraction,
 >(options: CommandGroupOptions<TGuarded>): CommandSpark<TGuarded> {

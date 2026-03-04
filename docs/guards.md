@@ -673,6 +673,35 @@ export function requireOption(name: string): Guard<Interaction, Interaction> {
 }
 ```
 
+## Automatic Type Narrowing
+
+When guards are provided to a `define*` function, the framework automatically narrows the `action` callback's parameter type using `NarrowedBy<TBase, Guards>`. This means guard output types flow through to the action without manual type assertions.
+
+```ts
+// Before: guild.systemChannel is `TextChannel | null` — requires `!`
+export const joinLog = defineGatewayEvent({
+  event: Events.GuildMemberAdd,
+  guards: [hasSystemChannel],
+  action: (member) => {
+    member.guild.systemChannel!.send('Welcome!'); // ← non-null assertion
+  },
+});
+
+// After: guild.systemChannel is `TextChannel` — no assertion needed
+export const joinLog = defineGatewayEvent({
+  event: Events.GuildMemberAdd,
+  guards: [hasSystemChannel],
+  action: (member) => {
+    member.guild.systemChannel.send('Welcome!'); // ← type-safe
+  },
+});
+```
+
+This works via function overloads — when `guards` is present, TypeScript infers the guard tuple as a `const` type and computes the intersection of the base type with each guard's output type. When no guards are provided, the action receives the un-narrowed base type as before.
+
+> [!NOTE]
+> You can still manually specify `TGuarded` as an explicit type parameter if needed. The auto-narrowing overload is tried first; the manual fallback applies when no guards are present or when an explicit type parameter is provided.
+
 ## Guard Execution & Error Handling
 
 All spark types use `processGuards()` internally to run guards with centralized error handling. Developers never call this directly.
@@ -712,6 +741,7 @@ Guard failure reasons should be user-facing messages. Write them as clear, conci
 | `Guard<TInput, TOutput>` | A guard function `(input) => GuardResult<TOutput>` |
 | `GuardResult<T>` | `{ ok: true, value: T }` or `{ ok: false, reason: string }` |
 | `GuardOutput<G>` | Extracts the output type from a `Guard` type |
+| `NarrowedBy<TBase, Guards>` | Intersects a base type with all guard output types — used by `define*` overloads for automatic type narrowing |
 | `GuardMeta` | Metadata attached to a guard: `name`, `requires?`, `incompatibleWith?`, `channelResolver?` |
 | `SparkType` | `'command' \| 'component' \| 'gateway-event' \| 'scheduled-event'` |
 | `GuildInteraction<T>` | Interaction with `guild`, `guildId`, `member`, and `channel` guaranteed |

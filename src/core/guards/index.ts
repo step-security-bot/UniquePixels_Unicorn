@@ -37,6 +37,35 @@ export type Guard<TInput, TOutput extends TInput = TInput> = (
 export type GuardOutput<G> =
 	G extends Guard<unknown, infer TOutput> ? TOutput : never;
 
+/**
+ * Computes the intersection of a base type with all guard output types.
+ * Preserves the base type while overlaying each guard's narrowing.
+ *
+ * Unlike {@link ChainedGuardOutput} (which replaces the type at each step),
+ * this intersects — so `GuildMember` stays `GuildMember` with extra constraints.
+ *
+ * @example
+ * ```ts
+ * // Guard narrows { guild: Guild } → { guild: Guild & { systemChannel: TextChannel } }
+ * type Result = NarrowedBy<GuildMember, [typeof hasSystemChannel]>;
+ * // → GuildMember & { guild: Guild & { systemChannel: TextChannel } }
+ * ```
+ */
+export type NarrowedBy<
+	TBase,
+	// biome-ignore lint/suspicious/noExplicitAny: Guard<any, any> required for heterogeneous guard tuples
+	Guards extends readonly Guard<any, any>[],
+> = Guards extends readonly []
+	? TBase
+	: Guards extends readonly [
+				// biome-ignore lint/suspicious/noExplicitAny: Guard<any, infer TOut> extracts output from any guard
+				Guard<any, infer TOut>,
+				// biome-ignore lint/suspicious/noExplicitAny: Guard<any, any> required for recursive tuple matching
+				...infer Rest extends readonly Guard<any, any>[],
+			]
+		? NarrowedBy<TBase & TOut, Rest>
+		: TBase;
+
 // ── Guard Metadata ──────────────────────────────────────────────────
 
 /** Spark type identifiers used for guard compatibility checks. */

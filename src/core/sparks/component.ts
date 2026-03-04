@@ -8,7 +8,7 @@ import type {
 	StringSelectMenuInteraction,
 	UserSelectMenuInteraction,
 } from 'discord.js';
-import type { Guard, GuardResult } from '@/core/guards';
+import type { Guard, GuardResult, NarrowedBy } from '@/core/guards';
 import { processGuards, resolveGuards } from '@/core/guards';
 import { attempt, isError } from '@/core/lib/attempt';
 import type { ExtendedLogger } from '@/core/lib/logger';
@@ -259,6 +259,25 @@ export function matchCustomId(
  * });
  * ```
  */
+/** Overload: when guards are provided, auto-narrow the action parameter type. */
+export function defineComponent<
+	TInput extends AnyComponentInteraction = ButtonInteraction,
+	// biome-ignore lint/suspicious/noExplicitAny: Guard<any, any> required for const tuple inference
+	const Guards extends readonly Guard<any, any>[] = readonly [],
+>(
+	options: ComponentOptions<TInput, NarrowedBy<TInput, Guards>> & {
+		guards: Guards;
+	},
+): ComponentSpark<TInput, NarrowedBy<TInput, Guards>>;
+
+/** Overload: without guards or with explicit TGuarded — backward compatible. */
+export function defineComponent<
+	TInput extends AnyComponentInteraction = ButtonInteraction,
+	TGuarded extends TInput = TInput,
+>(
+	options: ComponentOptions<TInput, TGuarded>,
+): ComponentSpark<TInput, TGuarded>;
+
 export function defineComponent<
 	TInput extends AnyComponentInteraction = ButtonInteraction,
 	TGuarded extends TInput = TInput,

@@ -3,6 +3,7 @@ import {
 	GUARD_META,
 	type Guard,
 	type GuardMeta,
+	type NarrowedBy,
 	createGuard,
 	getGuardMeta,
 	guardFail,
@@ -766,5 +767,54 @@ describe('processGuards', () => {
 		const result = await processGuards([], 'input', logger, 'test:ctx');
 
 		expect(result.ok).toBe(true);
+	});
+});
+
+// ── NarrowedBy type-level tests ─────────────────────────────────────
+// These are compile-time assertions verified by `bun qa:tsc`.
+
+describe('NarrowedBy', () => {
+	test('empty guards tuple returns base type', () => {
+		type Result = NarrowedBy<{ a: string }, readonly []>;
+		const value: Result = { a: 'hello' };
+		expect(value.a).toBe('hello');
+	});
+
+	test('single guard intersects output with base type', () => {
+		type Base = { a: string };
+		type Narrowed = Base & { b: number };
+		type Result = NarrowedBy<Base, readonly [Guard<Base, Narrowed>]>;
+
+		// If NarrowedBy works, Result has both `a` and `b`
+		const value: Result = { a: 'hello', b: 42 };
+		expect(value.a).toBe('hello');
+		expect(value.b).toBe(42);
+	});
+
+	test('multiple guards chain intersections', () => {
+		type Base = { a: string };
+		type WithB = Base & { b: number };
+		type WithC = WithB & { c: boolean };
+		type Result = NarrowedBy<
+			Base,
+			readonly [Guard<Base, WithB>, Guard<WithB, WithC>]
+		>;
+
+		// Result should have a, b, and c
+		const value: Result = { a: 'hello', b: 42, c: true };
+		expect(value.a).toBe('hello');
+		expect(value.b).toBe(42);
+		expect(value.c).toBe(true);
+	});
+
+	test('preserves base type properties through narrowing', () => {
+		type Base = { id: string; name: string; guild: { channel: null | string } };
+		type Narrowed = { guild: { channel: string } };
+		type Result = NarrowedBy<Base, readonly [Guard<{ guild: { channel: null | string } }, Narrowed>]>;
+
+		// Result should have id, name, AND narrowed guild.channel
+		const value: Result = { id: '1', name: 'test', guild: { channel: 'general' } };
+		expect(value.id).toBe('1');
+		expect(value.guild.channel).toBe('general');
 	});
 });

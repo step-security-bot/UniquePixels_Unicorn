@@ -1,5 +1,5 @@
 import type { Client, ClientEvents, Events } from 'discord.js';
-import type { Guard, GuardResult } from '@/core/guards';
+import type { Guard, GuardResult, NarrowedBy } from '@/core/guards';
 import { processGuards, resolveGuards } from '@/core/guards';
 import { attempt, isError } from '@/core/lib/attempt';
 
@@ -88,6 +88,27 @@ export interface GatewayEventSpark<
  * });
  * ```
  */
+/**
+ * Overload: when guards are provided, auto-narrow the action parameter type.
+ */
+export function defineGatewayEvent<
+	E extends keyof ClientEvents,
+	// biome-ignore lint/suspicious/noExplicitAny: Guard<any, any> required for const tuple inference
+	const Guards extends readonly Guard<any, any>[],
+>(
+	options: GatewayEventOptions<E, NarrowedBy<EventArg<E>, Guards>> & {
+		guards: Guards;
+	},
+): GatewayEventSpark<E, NarrowedBy<EventArg<E>, Guards>>;
+
+/**
+ * Overload: without guards or with explicit TGuarded — backward compatible.
+ */
+export function defineGatewayEvent<
+	E extends keyof ClientEvents,
+	TGuarded extends EventArg<E> = EventArg<E>,
+>(options: GatewayEventOptions<E, TGuarded>): GatewayEventSpark<E, TGuarded>;
+
 export function defineGatewayEvent<
 	E extends keyof ClientEvents,
 	TGuarded extends EventArg<E> = EventArg<E>,

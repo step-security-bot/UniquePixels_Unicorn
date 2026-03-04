@@ -11,7 +11,7 @@ import { defineCommand, defineCommandWithAutocomplete, defineCommandGroup, defin
 import type { CommandSpark, CommandBuilder, SubcommandHandler, ComponentSpark, CustomIdPattern, ReadyClient, ScheduledContext, AnySpark } from '@/core/sparks';
 // Guards
 import { createGuard, guardPass, guardFail, getGuardMeta, resolveGuards, processGuards } from '@/core/guards';
-import type { Guard, GuardResult, GuardMeta, ProcessGuardsOptions } from '@/core/guards';
+import type { Guard, GuardResult, GuardMeta, NarrowedBy, ProcessGuardsOptions } from '@/core/guards';
 // Built-in guards
 import { inCachedGuild, hasPermission, botHasPermission, hasPermissionIn, botHasPermissionIn, hasChannel, channelType, isUser, notBot, messageInGuild, rateLimit, hasSystemChannel, hasPublicUpdatesChannel, hasRulesChannel, hasSafetyAlertsChannel } from '@/guards/built-in';
 import type { GuildInteraction, ChannelTypedInteraction } from '@/guards/built-in';
@@ -364,6 +364,31 @@ export function myGuard<T extends SomeConstraint>(param: ParamType): Guard<T, T>
 | `hasSafetyAlertsChannel` | constant | `{guild:Guild}` → narrowed | Checks guild.safetyAlertsChannel exists |
 
 **Guard chaining:** Guards compose left-to-right. Output of guard N is input to guard N+1. Dependencies like `inCachedGuild` are auto-resolved for command/component sparks.
+
+**Automatic type narrowing:** All `define*` functions (except `defineScheduledEvent`) have overloads that infer guard output types and propagate them to the `action` callback via `NarrowedBy<TBase, Guards>`. When `guards` is provided, TypeScript infers a `const` tuple and computes the narrowed type automatically — no explicit generic needed:
+
+```ts
+// NarrowedBy intersects base type with each guard's output type
+type NarrowedBy<TBase, Guards extends readonly Guard<any, any>[]>
+
+// Auto-narrowing: interaction.guild is non-null without !
+export const cmd = defineCommand({
+  command: builder,
+  guards: [inCachedGuild],
+  action: (interaction) => {
+    interaction.guild.id;  // no ! needed — type is narrowed
+  },
+});
+
+// Works with all define* functions and multiple guards
+export const evt = defineGatewayEvent({
+  event: Events.GuildMemberAdd,
+  guards: [hasSystemChannel],
+  action: (member, client) => {
+    member.guild.systemChannel.send('Welcome!');  // narrowed
+  },
+});
+```
 
 **Channel guards + permission guards:** Special channel guards and `hasChannel` carry `channelResolver` metadata. Pass them to `hasPermissionIn`/`botHasPermissionIn` to check perms in that channel:
 
