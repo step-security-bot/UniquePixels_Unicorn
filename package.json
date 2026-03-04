@@ -1,6 +1,6 @@
 {
 	"name": "unicorn",
-	"version": "0.0.1",
+	"version": "0.2.0",
 	"description": "Unicorn is a framework for building Discord bots with ease using Discord.js and TypeScript, and built to run on Bun.",
 	"author": "Brian L. <brian@uniquepixels.xyz> (http://uniquepixels.xyz)",
 	"contributors": [],
