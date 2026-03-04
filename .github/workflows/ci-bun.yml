@@ -27,10 +27,6 @@ jobs:
           # bun.sh — oven-sh/setup-bun
           # securityscorecards.dev, api.securityscorecards.dev — actions/dependency-review-action
           # api.deps.dev — actions/dependency-review-action
-          # *.codecov.io — codecov/codecov-action
-          # keybase.io — codecov/codecov-action
-          # storage.googleapis.com:443 - codecov/codecov-action
-          # *.ingest.us.sentry.io — codecov/codecov-action
           allowed-endpoints: >
             github.com:443
             api.github.com:443
@@ -41,10 +37,6 @@ jobs:
             securityscorecards.dev:443
             api.securityscorecards.dev:443
             api.deps.dev:443
-            *.codecov.io:443
-            keybase.io:443
-            storage.googleapis.com:443
-            *.ingest.us.sentry.io:443
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Read Bun version
@@ -71,17 +63,6 @@ jobs:
           bun qa:tsc
       - name: Run tests
         run: bun qa:test
-      - name: Verify coverage artifact exists
-        if: success() && hashFiles('coverage/lcov.info') == ''
-        run: |
-          echo "::error::Expected coverage/lcov.info but it was not generated."
-          exit 1
-      - name: Upload coverage to Codecov
-        if: always() && hashFiles('coverage/lcov.info') != ''
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
-        with:
-          files: ./coverage/lcov.info
-          fail_ci_if_error: true
       - name: Dependency review
         if: github.event_name == 'pull_request'
         uses: actions/dependency-review-action@05fe4576374b728f0c523d6a13d64c25081e0803 # v4.8.3
